@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1118" />
+    <title>Vesper · static startpage</title>
+    <style>
+      :root { color-scheme: dark; --bg: #0b1118; --panel: #111a24; --line: #263747; --text: #e8f0f7; --muted: #8da0b2; --accent: #8de1c3; --accent-2: #7aa7ff; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; background: radial-gradient(circle at 12% 0%, #172b38 0, transparent 36rem), var(--bg); color: var(--text); font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(1160px, calc(100% - 36px)); margin: 0 auto; padding: 28px 0 44px; }
+      .topbar, .hero, .section-head, .footer, .stat-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+      .topbar { color: var(--muted); font: 12px ui-monospace, SFMono-Regular, monospace; letter-spacing: .08em; text-transform: uppercase; }
+      .brand { color: var(--text); font-weight: 700; }
+      .pill { border: 1px solid #376052; border-radius: 999px; color: var(--accent); padding: 4px 10px; }
+      .hero { align-items: end; padding: 92px 0 48px; }
+      .eyebrow { margin: 0 0 8px; color: var(--accent); font: 12px ui-monospace, SFMono-Regular, monospace; letter-spacing: .1em; text-transform: uppercase; }
+      h1, h2, p { margin-top: 0; }
+      h1 { max-width: 620px; margin-bottom: 12px; font-size: clamp(2.4rem, 7vw, 5.6rem); line-height: .95; letter-spacing: -.07em; }
+      h2 { margin-bottom: 4px; font-size: 19px; letter-spacing: -.02em; }
+      .lede { max-width: 620px; margin-bottom: 0; color: var(--muted); font-size: 16px; }
+      .clock { color: var(--accent); font: 14px ui-monospace, SFMono-Regular, monospace; white-space: nowrap; }
+      .layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; }
+      .stack { display: grid; gap: 18px; }
+      .card { border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(145deg, rgba(21, 34, 46, .94), rgba(14, 22, 31, .96)); box-shadow: 0 18px 70px rgba(0, 0, 0, .18); padding: 22px; }
+      .section-head { align-items: start; margin-bottom: 18px; }
+      .section-head p, .hint, .footer { color: var(--muted); }
+      .section-head p, .hint { margin-bottom: 0; font-size: 13px; }
+      .shortcut-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .shortcut, .tor-link { display: flex; align-items: center; gap: 12px; min-width: 0; border: 1px solid #263849; border-radius: 12px; background: rgba(9, 16, 23, .5); padding: 12px; transition: border-color .16s, transform .16s, background .16s; }
+      .shortcut:hover, .tor-link:hover { border-color: var(--accent); background: rgba(141, 225, 195, .08); transform: translateY(-2px); }
+      .icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; overflow: hidden; border-radius: 10px; background: #203344; color: var(--accent); font-weight: 800; }
+      .icon img { width: 100%; height: 100%; object-fit: cover; }
+      .shortcut-copy, .tor-copy { min-width: 0; }
+      .shortcut-title, .tor-title { display: block; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+      .domain { display: block; overflow: hidden; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, monospace; text-overflow: ellipsis; white-space: nowrap; }
+      .tor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .tor-link { border-color: #4c3d2a; }
+      .tor-link .icon { background: #3a2d1e; color: #f0bd73; }
+      .metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 22px; }
+      .metric { border: 1px solid var(--line); border-radius: 12px; padding: 13px; }
+      .metric-label { color: var(--muted); font-size: 12px; }
+      .metric-value { display: block; margin-top: 5px; color: var(--accent); font: 700 24px ui-monospace, SFMono-Regular, monospace; }
+      .chart { display: flex; align-items: end; gap: 5px; height: 142px; border-bottom: 1px solid var(--line); padding: 12px 0 22px; }
+      .bar-wrap { display: flex; position: relative; flex: 1; align-items: end; justify-content: center; height: 100%; min-width: 0; }
+      .bar { width: 100%; min-height: 3px; border-radius: 4px 4px 1px 1px; background: linear-gradient(var(--accent), #38685a); }
+      .bar-wrap:hover .bar { background: var(--accent); }
+      .bar-label { position: absolute; top: calc(100% + 7px); color: var(--muted); font: 10px ui-monospace, SFMono-Regular, monospace; }
+      button { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; padding: 0; }
+      button:hover { color: var(--accent); }
+      .footer { margin-top: 24px; font: 11px ui-monospace, SFMono-Regular, monospace; }
+      @media (max-width: 780px) { .hero { align-items: start; flex-direction: column; padding-top: 64px; } .layout { grid-template-columns: 1fr; } }
+      @media (max-width: 520px) { .shell { width: min(100% - 24px, 1160px); } .shortcut-grid, .tor-grid { grid-template-columns: 1fr; } .card { padding: 17px; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="topbar"><span class="brand">vesper / executive private surface</span><span class="pill">static html + inline js</span></nav>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">your surface for the unknown</p>
+          <h1>Browser activity, without a browser server.</h1>
+          <p class="lede">A standalone startpage. The JavaScript is embedded in this file, so it survives reboots without localhost, systemd or a port.</p>
+        </div>
+        <time id="clock" class="clock"></time>
+      </section>
+      <section class="layout">
+        <div class="stack">
+          <section class="card">
+            <div class="section-head"><div><h2>Helium shortcuts</h2><p>10 pinned destinations</p></div><span class="hint">direct links</span></div>
+            <div id="shortcuts" class="shortcut-grid"></div>
+          </section>
+          <section class="card">
+            <div class="section-head"><div><h2>Tor sources</h2><p>Open these from Tor Browser</p></div><span class="hint">onion links</span></div>
+            <div id="tor" class="tor-grid"></div>
+          </section>
+        </div>
+        <aside class="stack">
+          <section class="card">
+            <div class="section-head"><div><h2>Local analysis</h2><p>Saved by this page only</p></div><button id="reset" type="button">reset</button></div>
+            <div class="metric-grid">
+              <div class="metric"><span class="metric-label">Local clicks</span><strong id="total" class="metric-value">0</strong></div>
+              <div class="metric"><span class="metric-label">Top site</span><strong id="top" class="metric-value">—</strong></div>
+            </div>
+            <div id="chart" class="chart" aria-label="Local clicks over the last 14 days"></div>
+            <p class="hint" style="margin: 15px 0 0">This cannot read Zen or Helium history from a file page. Clicks here stay in localStorage and never leave the browser.</p>
+          </section>
+        </aside>
+      </section>
+      <footer class="footer"><span>Vesper local surface · no remote sync</span><span>file:// · reboot-proof</span></footer>
+    </main>
+    <script>
+      const shortcuts = [
+        ["github", "GitHub", "https://github.com/"],
+        ["leaderboard", "AI Leaderboard", "https://artificialanalysis.ai/"],
+        ["g", "/g/", "https://boards.4chan.org/g/"],
+        ["wpd", "WPD", "https://watchpeopledie.tv/home"],
+        ["hn", "Hacker News", "https://news.ycombinator.com/"],
+        ["vibe", "vibe", "https://canivibecodeit.com/"],
+        ["x", "X", "https://x.com/"],
+        ["reddit", "Reddit", "https://reddit.com/"],
+        ["gpt", "GPT", "https://chatgpt.com/"],
+        ["claude", "Claude", "https://claude.ai/"]
+      ];
+      const torSources = [
+        ["dread", "Dread", "https://dreadytofatroptsdj6io7l3xptbet6onoyno2yv7jicoxknyazubrad.onion/"],
+        ["pitch", "Pitch", "https://pitchzzzoot5i4cpsblu2d5poifsyixo5r4litxkukstre5lrbjakxid.onion/"]
+      ];
+      const storageKey = "vesper-static-clicks-v1";
+      let state = { counts: {}, events: [] };
+      try {
+        const stored = JSON.parse(localStorage.getItem(storageKey));
+        if (stored && typeof stored === "object" && stored.counts && typeof stored.counts === "object" && Array.isArray(stored.events)) {
+          state = {
+            counts: Object.fromEntries(Object.entries(stored.counts).filter(([, value]) => Number.isFinite(value)).map(([id, value]) => [id, Math.max(0, Math.floor(value))])),
+            events: stored.events.filter((stamp) => Number.isFinite(stamp)).slice(-500)
+          };
+        }
+      } catch (_) {}
+      const save = () => { try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch (_) {} };
+      const host = (url) => { try { return new URL(url).hostname; } catch (_) { return url; } };
+      const initial = (title) => title.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase() || "V";
+      const favicon = (url) => `${new URL(url).origin}/favicon.ico`;
+      const shortcutMarkup = ([id, title, url]) => `<a class="shortcut" data-site="${id}" href="${url}" target="_blank" rel="noreferrer"><span class="icon"><img src="${favicon(url)}" alt="" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span hidden>${initial(title)}</span></span><span class="shortcut-copy"><span class="shortcut-title">${title}</span><span class="domain">${host(url)}</span></span></a>`;
+      const torMarkup = ([id, title, url]) => `<a class="tor-link" data-site="${id}" href="${url}" target="_blank" rel="noreferrer"><span class="icon">◉</span><span class="tor-copy"><span class="tor-title">${title}</span><span class="domain">${host(url)}</span></span></a>`;
+      document.querySelector("#shortcuts").innerHTML = shortcuts.map(shortcutMarkup).join("");
+      document.querySelector("#tor").innerHTML = torSources.map(torMarkup).join("");
+      const render = () => {
+        const total = Object.values(state.counts).reduce((sum, value) => sum + value, 0);
+        const top = shortcuts.concat(torSources).sort((a, b) => (state.counts[b[0]] || 0) - (state.counts[a[0]] || 0))[0];
+        document.querySelector("#total").textContent = total;
+        document.querySelector("#top").textContent = total && state.counts[top[0]] ? top[1] : "—";
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const days = Array.from({ length: 14 }, (_, index) => { const date = new Date(today); date.setDate(today.getDate() - 13 + index); return { date, count: 0 }; });
+        state.events.forEach((stamp) => { const date = new Date(stamp); date.setHours(0, 0, 0, 0); const day = days.find((entry) => entry.date.getTime() === date.getTime()); if (day) day.count += 1; });
+        const max = Math.max(1, ...days.map((day) => day.count));
+        document.querySelector("#chart").innerHTML = days.map((day) => `<span class="bar-wrap" title="${day.date.toLocaleDateString("en-US")}: ${day.count} clicks"><span class="bar" style="height:${Math.max(3, day.count / max * 100)}%"></span><span class="bar-label">${day.date.getDate()}</span></span>`).join("");
+      };
+      document.addEventListener("click", (event) => { const link = event.target.closest("a[data-site]"); if (!link) return; const id = link.dataset.site; state.counts[id] = (state.counts[id] || 0) + 1; state.events.push(Date.now()); state.events = state.events.slice(-500); save(); render(); });
+      document.querySelector("#reset").addEventListener("click", () => { state = { counts: {}, events: [] }; save(); render(); });
+      const tick = () => { document.querySelector("#clock").textContent = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date()); };
+      tick(); setInterval(tick, 30000); render();
+    </script>
+  </body>
+</html>

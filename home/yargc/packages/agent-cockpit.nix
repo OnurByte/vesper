@@ -25,6 +25,8 @@ writeShellApplication {
     cache_ttl="''${VESPER_AGENT_CACHE_TTL:-10}"
     [[ "$cache_ttl" =~ ^[0-9]+$ ]] || cache_ttl=10
     mkdir -p "$state_dir"
+    chmod 700 "$state_dir"
+    umask 077
 
     cleanup_state() {
       local file pid

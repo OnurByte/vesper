@@ -4,6 +4,11 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    vesper-store = {
+      url = "path:../vesper-store";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -73,9 +78,6 @@
         t3code-nightly = pkgs.callPackage ./home/yargc/packages/t3code-nightly.nix { };
         turnlens = pkgs.callPackage ./home/yargc/packages/turnlens.nix { };
         vesper-startpage = pkgs.callPackage ./home/yargc/packages/vesper-startpage { };
-        vesper-store = pkgs.callPackage ./home/yargc/packages/vesper-store {
-          nixpkgsRevision = nixpkgs.rev;
-        };
       };
 
       nixosConfigurations.${hostname} = nixpkgs.lib.nixosSystem {

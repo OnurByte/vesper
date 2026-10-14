@@ -95,7 +95,7 @@ ColumnLayout {
     StyledText {
         Layout.fillWidth: true
         Layout.topMargin: Tokens.spacing.small
-        text: qsTr("Adaptive icon generation is managed in AI. Per-app icon controls remain in each application page.")
+        text: qsTr("Liquid Glass icon conversion is an optional local sibling app. Per-app apply and restore controls remain in each application page.")
         color: Colours.palette.m3onSurfaceVariant
         font: Tokens.font.body.small
         wrapMode: Text.WordWrap

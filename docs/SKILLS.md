@@ -7,11 +7,20 @@ Codex, Claude Code and OpenCode expose their normal skill paths as links back in
 
 All Vesper-authored skill names, metadata and instructions are written in English.
 
-The upstream Anthropic skills come from `anthropics/skills` pinned to commit:
+## external source pins
 
-```text
-f6656c1256d5a8adfa37db9110046ef20bac644c
-```
+`home/yargc/skills.nix` is the one maintenance location for external skill
+sources. These intentionally use immutable `builtins.fetchGit` revisions outside
+`flake.lock`; an update must change the source and its exact revision together,
+then pass the normal Nix activation checks.
+
+| source | repository | pinned revision | active skills |
+|---|---|---|---|
+| Anthropic | `https://github.com/anthropics/skills.git` | `f6656c1256d5a8adfa37db9110046ef20bac644c` | `frontend-design`, `webapp-testing`, `web-artifacts-builder`, `mcp-builder`, `skill-creator`, `pdf`, `docx`, `xlsx`, `pptx` |
+| shadcn | `https://github.com/shadcn-ui/ui.git` | `4e88ab81ae1d1550165db949a903c691a04f699c` | `shadcn` |
+| Vercel | `https://github.com/vercel-labs/agent-skills.git` | `b8caa260a420a73042e35521de4b5c8baf6446cc` | `web-design-guidelines` |
+| Impeccable | `https://github.com/pbakaus/impeccable.git` | `f88b2837a7d7c3182e46307bbbb091a1ed547571` | `impeccable` |
+| Taste | `https://github.com/leonxlnx/taste-skill.git` | `dfb6f9f9e93a39f673b1827c0889cc28326d1800` | `industrial-brutalist-ui` |
 
 Upstream skills:
 
@@ -104,7 +113,7 @@ Use one skill for one procedural boundary.
 - `external-review-handoff` — secret-safe static code snapshots for deep external review plus mandatory verification against the live repository before implementation
 - `vesper-maintainer` — repository/workstation maintenance rules, physical-chain diagnosis and red-capable regression loops
 - `vesper-skill-authoring` — Vesper-specific skill and agent-document authoring
-- `vesper-adaptive-icons` — adaptive icon pipeline operations governed by `docs/ADAPTIVE-ICONS.md`
+- `vesper-adaptive-icons` — Liquid Glass integration operations governed by `docs/ADAPTIVE-ICONS.md`
 - `hermes-research-radar` — scheduled research lanes and discovery behavior
 - `vesper-communications-intelligence` — read-only messaging triage, salience, commitments, evidence-backed person/group/topic context and concrete communication-risk analysis
 - `vesper-obsidian-second-brain` — durable research/communications knowledge consolidation and skill-promotion workflow
@@ -310,7 +319,7 @@ use agent-operations for this persistent agent/job or reliability workflow
 use external-review-handoff to prepare this subsystem for a deep external audit
 use vesper-maintainer to diagnose and repair this workstation issue
 use vesper-skill-authoring when editing a Vesper skill or agent instruction document
-use vesper-adaptive-icons for adaptive icon pipeline work
+use vesper-adaptive-icons for Liquid Glass integration work
 use hermes-research-radar for this scheduled research program
 use vesper-communications-intelligence to triage this read-only communications batch
 use vesper-obsidian-second-brain to consolidate durable research and communications context into Obsidian

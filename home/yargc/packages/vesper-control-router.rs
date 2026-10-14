@@ -10,8 +10,8 @@ fn exec(command: &str, args: &[String]) -> ! {
 
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
-    if matches!(args.first().map(String::as_str), Some("icon")) {
-        exec("vesper-icon-engine", &args[1..]);
+    if matches!(args.first().map(String::as_str), Some("liquid-glass")) {
+        exec("liquid-glass-icon", &args[1..]);
     }
     exec("vesper-control-core", &args);
 }

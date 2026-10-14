@@ -4,7 +4,7 @@ Status: **partial**
 
 This document owns Vesper-specific installed-application settings behavior, default-application handling, the Spotlight/launcher boundary, and the handoff between `Settings -> Apps` and Vesper Store.
 
-Vesper extends Caelestia's native Apps surface instead of adding a second settings application. Vesper Store is a separate native Qt 6 / QML application for discovery and installation. [Vicinae](https://github.com/vicinaehq/vicinae) is the default Spotlight-style launcher/search surface; it is not an application manager or package owner.
+Vesper extends Caelestia's native Apps surface instead of adding a second settings application. Vesper Store is an external sibling application for discovery and installation. [Vicinae](https://github.com/vicinaehq/vicinae) is the default Spotlight-style launcher/search surface; it is not an application manager or package owner.
 
 `SETTINGS.md` owns where Apps, App Inspector and Wellbeing appear in the wider Settings information architecture.
 
@@ -15,7 +15,7 @@ Implemented Vesper-specific pieces include:
 - `Find New Apps` in Apps, launching `vesper-store`;
 - Vicinae enabled as the default Spotlight-style launcher with a Home Manager user systemd service; the Hyprland session bridge starts and stops `graphical-session.target` for that service;
 - bare `Super` toggling Vicinae instead of the Caelestia app launcher, with `Super + Space` retained as an alternate;
-- a `Settings -> Vicinae` page for launcher behavior, Vesper theme/accent sync, controlled-glass opacity and Vesper adaptive icons;
+- a `Settings -> Vicinae` page for launcher behavior, Vesper theme/accent sync and controlled-glass opacity;
 - the installed Apps list using the existing Quickshell `DesktopEntries` registry;
 - category filtering derived from real desktop-entry `Categories` metadata;
 - installed-app rows showing icon, name, description, default-role state and an inline Open action;
@@ -25,8 +25,8 @@ Implemented Vesper-specific pieces include:
 - Flatpak network/home override controls where the backend can enforce them;
 - native-app state that does not pretend ordinary Nix applications are Flatpak-sandboxed;
 - App Inspector ownership state resolved from the winning desktop entry, its `X-Flatpak`/export evidence and `flatpak info --user/--system` scope;
-- per-app adaptive-icon status/actions through the existing Vesper app controls;
-- shared adaptive-icon identity after an installed desktop entry is discovered.
+- per-app Liquid Glass cache status, local reapply and restore actions through the existing Vesper app controls.
+- ChatGPT Desktop and Claude Desktop are not included in the default profile. Vicinae root-search script commands (`Get ChatGPT` and `Get Claude`) are recommendation entries that open the matching Vesper Store search instead of creating fake installed-app entries.
 
 The Default Agent selector, physical Assistant/Copilot-key handling and Quake Agent Console are not implemented in the current Hyprland/QML tree. Their shared contract is target work owned by `DESKTOP-ERGONOMICS.md`; the current AI HUD shortcut is `Super + U -> codexbar-popup`.
 
@@ -61,11 +61,11 @@ Settings -> Apps
   -> real enforceable permissions
   -> app/runtime inspection
   -> wellbeing
-  -> adaptive icon controls
+  -> optional Liquid Glass icon controls
 ```
 
-`MARKETPLACE.md` is authoritative for Store architecture, package sources, catalogue identity and install transactions.
-`ADAPTIVE-ICONS.md` is authoritative for adaptive icon discovery, conversion and appearance semantics.
+`../../vesper-store/docs/MARKETPLACE.md` is authoritative for Store architecture, package sources, catalogue identity and install transactions.
+`ADAPTIVE-ICONS.md` is authoritative for the Liquid Glass integration boundary. The sibling project owns discovery, conversion and rendering semantics.
 `DESKTOP-ERGONOMICS.md` is authoritative for the Quake Agent Console and physical Assistant/Copilot-key interaction.
 
 Do not add a second installed-app management system to Vesper Store or Vicinae.
@@ -93,7 +93,7 @@ The initial integration intentionally keeps ownership narrow:
 - the old Caelestia launcher may remain available internally, but bare `Super` belongs to Vicinae and `Super + Space` remains its compatibility alias;
 - Vesper-specific actions should integrate with Vicinae through supported commands/deeplinks/extensions rather than forking Vicinae when practical;
 - Vicinae theme integration follows Vesper appearance work without creating a second independent visual identity database;
-- the Vicinae Settings page exposes only controls enforced by the imported runtime configuration: focus-loss behavior, root reset, layer-shell, controlled-glass opacity, theme following and adaptive-icon following.
+- the Vicinae Settings page exposes only controls enforced by the imported runtime configuration: focus-loss behavior, root reset, layer-shell, controlled-glass opacity and theme following.
 
 Vicinae's application index and Settings -> Apps both ultimately refer to desktop applications, but Vesper must not create a third app identity database merely to reconcile them. Canonical desktop IDs and `.desktop` metadata remain the common identity layer.
 
@@ -122,7 +122,7 @@ Desktop ID       -> canonical installed-app identity
 Name             -> application title
 Comment          -> primary description
 GenericName      -> description fallback when Comment is absent
-Icon             -> normal icon resolution -> Vesper adaptive-icon layer when active
+Icon             -> normal icon resolution, including an optional sibling-managed hicolor override
 Categories       -> Apps category filtering
 StartupWMClass   -> window-identity hint, never sole package ownership proof
 Exec             -> parsed by the desktop-entry implementation; never execute raw text from QML
@@ -135,7 +135,7 @@ Rules:
 - launch with the resolved desktop entry (`execute()` or equivalent canonical launch path), not by evaluating raw `Exec=` text;
 - do not infer package ownership from `Name`, `StartupWMClass` or executable basename alone;
 - preserve unknown/empty metadata instead of inventing descriptions or categories;
-- adaptive icons may replace presentation of `Icon`, but do not replace the underlying desktop identity.
+- a Liquid Glass override may replace presentation of `Icon`, but does not replace the underlying desktop identity.
 
 ## Find New Apps
 
@@ -147,6 +147,16 @@ Discover and install applications with Vesper Store
 ```
 
 The action launches `vesper-store`.
+
+Vicinae recommendation commands may pass a query directly to Store:
+
+```text
+vesper-store --search "ChatGPT"
+vesper-store --search "Claude Desktop"
+```
+
+This opens Store's Search page with the supplied query. It does not claim that
+the requested app is installed or that a Store transaction has completed.
 
 Prefer single-instance activation so an existing Store window is focused rather than duplicated.
 
@@ -223,7 +233,7 @@ Each row should stay compact and native to Nexus:
 
 Required row data:
 
-- active Vesper/adaptive icon when available, otherwise resolved packaged icon;
+- active sibling-managed hicolor override when available, otherwise resolved packaged icon;
 - application `Name`;
 - `Comment`, falling back to `GenericName`;
 - compact default-role indicator only when the app is actually a current default;
@@ -296,7 +306,7 @@ Useful inspectable state, when reliable sources exist, includes:
 - autostart state;
 - file associations;
 - wellbeing usage;
-- adaptive-icon state.
+- optional Liquid Glass cache and managed-override state.
 
 Unknown data stays unknown. Do not fabricate process, GPU, network or package ownership from application names alone.
 
@@ -349,7 +359,7 @@ Rules:
 - do not show an enabled Remove button unless the backend can identify and invoke the actual owner;
 - destructive removal requires confirmation naming the application;
 - a system/global Flatpak is not the same as a user Flatpak and must not be removed through the user-only path;
-- successful removal triggers normal desktop-entry/adaptive-icon reconciliation;
+- successful removal leaves normal desktop-entry discovery to the next Apps refresh;
 - removal must never be implemented by deleting a `.desktop` file while leaving the package installed.
 
 ### installed size
@@ -385,7 +395,7 @@ Rules:
 
 ## wellbeing
 
-`vesper-control wellbeing-daemon` samples the active Hyprland window every five seconds, resolves its class through the adaptive-icon canonical identity inventory, and stores daily local counters under:
+`vesper-control wellbeing-daemon` samples the active Hyprland window every five seconds, records its exact runtime class, and stores daily local counters under:
 
 ```text
 ~/.local/state/vesper/wellbeing/
@@ -415,13 +425,9 @@ Target wellbeing can grow into a local Digital Wellbeing surface with daily/week
 Do not claim exact human attention time from foreground-window sampling alone.
 Do not upload usage history merely to build charts, reminders or category summaries.
 
-## adaptive icons
+## Liquid Glass icons
 
-`ADAPTIVE-ICONS.md` remains the single source of truth for adaptive icon discovery, conversion, rendering and appearance generation.
-
-Store catalogue icons are read-only discovery assets before installation. After installation, the real `.desktop` entry is reconciled and the existing adaptive-icon pipeline owns the installed application identity.
-
-Apps keeps per-application icon status and actions. Vicinae and Vesper Store must not create parallel adaptive-icon pipelines.
+`ADAPTIVE-ICONS.md` defines the Vesper boundary to the sibling Liquid Glass project. Store catalogue icons are read-only discovery assets. After installation, Apps can read a real desktop ID's sibling status, reapply a current local cache, or restore its managed user override. Apps, Vicinae and Store do not own conversion queues or parallel icon pipelines.
 
 ## implementation rules
 

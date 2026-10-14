@@ -51,6 +51,90 @@ jobs:
           grep -Fq 'let raw = invoke_agent(&prompt, AgentMode::Communications)?;' home/yargc/packages/hermes-rs/main.rs
           grep -Fq 'args.extend(["--safe-mode", "-t", "context_engine"]);' home/yargc/packages/hermes-rs/main.rs
 
+      - name: Guard Agent Cockpit snapshot boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cockpit="$RUNNER_TEMP/vesper-agent-cockpit"
+          awk -v marker="''" '
+            $0 == "  text = " marker { body = 1; next }
+            body && $0 == "  " marker ";" { exit }
+            body { sub(/^    /, ""); gsub(marker "\\$\\{", "${"); print }
+          ' home/yargc/packages/agent-cockpit.nix > "$cockpit"
+          chmod +x "$cockpit"
+
+          state="$RUNNER_TEMP/agent-cockpit-state"
+          sentinel='cockpit-fixture-token-must-not-persist'
+          bash -c 'exec -a codex bash -c "sleep 30" --token cockpit-fixture-token-must-not-persist' &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
+
+          VESPER_AGENT_STATE_DIR="$state" VESPER_AGENT_CACHE_TTL=0 "$cockpit" status \
+            | jq -e '.schemaVersion == 2 and (.agents | type == "array")' >/dev/null
+          test "$(stat -c '%a' "$state")" = 700
+          test "$(stat -c '%a' "$state/status.json")" = 600
+          if grep -R -F -- "$sentinel" "$state"; then
+            echo 'Agent Cockpit persisted raw process arguments' >&2
+            exit 1
+          fi
+
+      - name: Guard Privacy HUD ownership signals
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          hud="$RUNNER_TEMP/vesper-privacy-hud"
+          awk -v marker="''" '
+            $0 == "  text = " marker { body = 1; next }
+            body && $0 == "  " marker ";" { exit }
+            body { sub(/^    /, ""); gsub(marker "\\$\\{", "${"); print }
+          ' home/yargc/packages/privacy-hud.nix > "$hud"
+          chmod +x "$hud"
+
+          shim="$RUNNER_TEMP/privacy-hud-shim"
+          mkdir -p "$shim"
+          printf '%s\n' '#!/usr/bin/env bash' 'case "$*" in' '  *tor.service*) exit 1 ;;' '  *vesper-cliphist-text.service*) exit 0 ;;' '  *) exit 1 ;;' 'esac' > "$shim/systemctl"
+          printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "[{\"type\":\"PipeWire:Interface:Node\",\"info\":{\"state\":\"running\",\"props\":{\"media.class\":\"Stream/Input/Audio\"}}}]"' > "$shim/pw-dump"
+          printf '%s\n' '#!/usr/bin/env bash' 'exit 1' > "$shim/pgrep"
+          printf '%s\n' '#!/usr/bin/env bash' 'exit 1' > "$shim/fuser"
+          chmod +x "$shim/systemctl" "$shim/pw-dump" "$shim/pgrep" "$shim/fuser"
+
+          bash -c 'exec -a tor sleep 30' &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
+          runtime="$RUNNER_TEMP/privacy-hud-runtime"
+          PATH="$shim:$PATH" XDG_RUNTIME_DIR="$runtime" "$hud" status \
+            | jq -e '.tor == "off" and .mic == "active" and .clipboard == "degraded" and .class == "attention"' >/dev/null
+          test "$(stat -c '%a' "$runtime/vesper")" = 700
+          test "$(stat -c '%a' "$runtime/vesper/privacy-hud.json")" = 600
+
+      - name: Guard Vesper Doctor desktop and secret boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          doctor="$RUNNER_TEMP/vesper-doctor"
+          awk -v marker="''" '
+            $0 == "    text = " marker { body = 1; next }
+            body && $0 == "    " marker ";" { exit }
+            body { sub(/^      /, ""); gsub(marker "\\$\\{", "${"); print }
+          ' home/yargc/doctor.nix > "$doctor"
+          chmod +x "$doctor"
+
+          shim="$RUNNER_TEMP/vesper-doctor-shim"
+          mkdir -p "$shim"
+          printf '%s\n' '#!/usr/bin/env bash' 'exit 1' > "$shim/systemctl"
+          printf '%s\n' '#!/usr/bin/env bash' 'printf "ext4\\n"' > "$shim/findmnt"
+          chmod +x "$shim/systemctl" "$shim/findmnt"
+
+          restic_env="$RUNNER_TEMP/restic.env"
+          printf '%s\n' 'RESTIC_REPOSITORY=opaque' > "$restic_env"
+          chmod 000 "$restic_env"
+          PATH="$shim:$PATH" HOME="$RUNNER_TEMP/doctor-home" WAYLAND_DISPLAY= HYPRLAND_INSTANCE_SIGNATURE= \
+            VESPER_RESTIC_ENV_FILE="$restic_env" "$doctor" --json \
+            | jq -e '([.checks[] | select(.key == "graphical_session" and .level == "info")] | length == 1) and ([.checks[] | select(.key == "restic" and .level == "ok")] | length == 1)' >/dev/null
+
       - name: Parse every Nix file
         shell: bash
         run: |
@@ -96,7 +180,13 @@ jobs:
         run: |
           set +e
           nix shell nixpkgs#rustc -c bash -c \
-            'rustc --edition=2021 --emit=metadata home/yargc/packages/vesper-control.rs -o /tmp/vesper-control.rmeta' \
+            '
+              set -euo pipefail
+              rustc --edition=2021 --test home/yargc/packages/vesper-control.rs -o /tmp/vesper-control-tests
+              /tmp/vesper-control-tests
+              rustc --edition=2021 --emit=metadata home/yargc/packages/vesper-control.rs -o /tmp/vesper-control.rmeta
+              rustc --edition=2021 --emit=metadata home/yargc/packages/vesper-control-router.rs -o /tmp/vesper-control-router.rmeta
+            ' \
             >vesper-control-rust.log 2>&1
           status=$?
 
@@ -164,9 +254,6 @@ jobs:
 
       - name: Evaluate Home Manager activation
         run: nix eval --raw '.#nixosConfigurations.vesper.config.home-manager.users.yargc.home.activationPackage.drvPath' >/dev/null
-
-      - name: Build Vesper Store package
-        run: nix build --no-link --print-build-logs .#vesper-store
 
       - name: Build Caelestia surface
         shell: bash

@@ -1,45 +1,19 @@
 {
   bluez,
-  coreutils,
-  curl,
   flatpak,
-  gnutar,
   hyprland,
-  imagemagick,
-  inotify-tools,
-  jq,
   lib,
   libsecret,
-  librsvg,
-  libxml2,
   makeWrapper,
   networkmanager,
   qrencode,
   rustc,
-  rustPlatform,
-  sqlite,
   stdenv,
   systemd,
 }:
-let
-  iconEngine = rustPlatform.buildRustPackage {
-    pname = "vesper-icons";
-    version = "1.0.0";
-    # Keep unrelated Vesper package edits out of the icon crate source hash.
-    src = lib.cleanSourceWith {
-      src = lib.cleanSource ./.;
-      filter = path: type:
-        type == "directory"
-        || lib.elem (lib.baseNameOf path) [ "Cargo.toml" "Cargo.lock" ]
-        || lib.hasSuffix ".rs" (lib.baseNameOf path);
-    };
-    cargoLock.lockFile = ./Cargo.lock;
-    nativeBuildInputs = [ sqlite ];
-  };
-in
 stdenv.mkDerivation {
   pname = "vesper-control";
-  version = "0.4.0";
+  version = "0.5.0";
 
   dontUnpack = true;
 
@@ -69,45 +43,23 @@ stdenv.mkDerivation {
     runHook preInstall
     install -Dm755 vesper-control $out/bin/vesper-control
     install -Dm755 vesper-control-core $out/bin/vesper-control-core
-    install -Dm755 ${iconEngine}/bin/vesper-icon-engine $out/bin/vesper-icon-engine
-    install -Dm755 ${iconEngine}/bin/vesper-icon-engine-core $out/bin/vesper-icon-engine-core
-    install -Dm755 ${iconEngine}/bin/vesper-icon-queue $out/bin/vesper-icon-queue
-    install -Dm755 ${iconEngine}/bin/vesper-icon-worker $out/bin/vesper-icon-worker
-    install -Dm755 ${iconEngine}/bin/vesper-icon-identity $out/bin/vesper-icon-identity
 
     runtimePath=${lib.makeBinPath [
       bluez
-      coreutils
-      curl
       flatpak
-      gnutar
       hyprland
-      imagemagick
-      inotify-tools
-      jq
       libsecret
-      librsvg
-      libxml2
       networkmanager
       qrencode
-      sqlite
       systemd
     ]}
 
+    # Liquid Glass remains an independently installed sibling application.
+    # Keep the caller's profile PATH so its versioned CLI is discoverable.
     wrapProgram $out/bin/vesper-control \
       --prefix PATH : "$out/bin:$runtimePath"
     wrapProgram $out/bin/vesper-control-core \
       --prefix PATH : "$runtimePath"
-    wrapProgram $out/bin/vesper-icon-engine \
-      --prefix PATH : "$out/bin:$runtimePath"
-    wrapProgram $out/bin/vesper-icon-engine-core \
-      --prefix PATH : "$runtimePath"
-    wrapProgram $out/bin/vesper-icon-queue \
-      --prefix PATH : "$out/bin:$runtimePath"
-    wrapProgram $out/bin/vesper-icon-worker \
-      --prefix PATH : "$out/bin:$runtimePath"
-    wrapProgram $out/bin/vesper-icon-identity \
-      --prefix PATH : "$out/bin:$runtimePath"
     runHook postInstall
   '';
 

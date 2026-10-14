@@ -13,8 +13,7 @@ ColumnLayout {
 
     property var app
     property var status: ({ sandbox: "unknown", owner: "unresolved", desktopPath: "", flatpakScope: "", flatpakId: "", permissions: "", removable: false, todaySeconds: 0 })
-    property var iconStatus: ({ id: "", iconKey: "", sourcePath: "", sourceKind: "", fingerprint: "", canonicalState: "missing", active: false, excluded: false, error: "" })
-    property var queueStatus: ({ state: "none", provider: "", attempts: 0, nextRunMs: 0, lastError: "" })
+    property var liquidGlass: ({ cache: "missing", managed: false })
     property string message: ""
     property bool messageOk: false
     property bool removalArmed: false
@@ -63,23 +62,19 @@ ColumnLayout {
             appStatus.command = ["@vesperControl@", "app-status", root.app.id];
             appStatus.running = true;
         }
-        if (!iconAppStatus.running) {
-            iconAppStatus.command = ["@vesperControl@", "icon", "app-status", root.app.id];
-            iconAppStatus.running = true;
-        }
-        if (!queueAppStatus.running) {
-            queueAppStatus.command = ["@vesperControl@", "icon", "queue-app-status", root.app.id];
-            queueAppStatus.running = true;
+        if (!liquidGlassStatus.running) {
+            liquidGlassStatus.command = ["@vesperControl@", "liquid-glass", "status", "--desktop-id", root.app.id, "--json"];
+            liquidGlassStatus.running = true;
         }
     }
 
-    function runIcon(args, successMessage) {
+    function runLiquidGlass(args, successMessage) {
         if (!root.app || iconAction.running)
             return;
         root.message = "";
         root.messageOk = false;
         iconAction.successMessage = successMessage;
-        iconAction.command = ["@vesperControl@", "icon"].concat(args);
+        iconAction.command = ["@vesperControl@", "liquid-glass"].concat(args);
         iconAction.running = true;
     }
 
@@ -88,13 +83,6 @@ ColumnLayout {
         refresh();
     }
     Component.onCompleted: refresh()
-
-    Timer {
-        interval: 5000
-        repeat: true
-        running: root.visible && ["ready", "running", "retry-wait", "blocked-no-provider"].includes(root.queueStatus.state)
-        onTriggered: root.refresh()
-    }
 
     Process {
         id: appStatus
@@ -111,26 +99,13 @@ ColumnLayout {
     }
 
     Process {
-        id: iconAppStatus
+        id: liquidGlassStatus
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    root.iconStatus = JSON.parse(text);
+                    root.liquidGlass = JSON.parse(text).data?.[0] || ({ cache: "missing", managed: false });
                 } catch (e) {
-                    root.iconStatus = ({ id: root.app?.id || "", iconKey: root.app?.icon || "", sourcePath: "", sourceKind: "", fingerprint: "", canonicalState: "missing", active: false, excluded: false, error: qsTr("not discovered yet") });
-                }
-            }
-        }
-    }
-
-    Process {
-        id: queueAppStatus
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    root.queueStatus = JSON.parse(text);
-                } catch (e) {
-                    root.queueStatus = ({ state: "none", provider: "", attempts: 0, nextRunMs: 0, lastError: "" });
+                    root.liquidGlass = ({ cache: "missing", managed: false });
                 }
             }
         }
@@ -165,12 +140,10 @@ ColumnLayout {
     Process {
         id: iconAction
         property string successMessage: ""
-        stdout: StdioCollector { id: iconOutput }
         stderr: StdioCollector { id: iconError }
         onExited: (code, status) => {
             if (code === 0) {
-                const value = iconOutput.text.trim();
-                root.message = value.length > 0 ? qsTr("Exported to %1").arg(value) : successMessage;
+                root.message = successMessage;
                 root.messageOk = true;
             } else {
                 root.message = iconError.text.trim();
@@ -320,64 +293,46 @@ ColumnLayout {
     }
 
     SectionHeader {
-        text: qsTr("Adaptive icon")
+        text: qsTr("Liquid Glass icon")
     }
 
     InfoRow {
         icon: "image"
-        label: qsTr("Source icon")
-        subtext: root.iconStatus.sourcePath || root.iconStatus.iconKey || qsTr("source not resolved")
-        value: root.iconStatus.sourceKind || qsTr("unknown")
+        label: qsTr("Local cache")
+        subtext: root.liquidGlass.cache === "current"
+            ? qsTr("canonical SVG is current")
+            : root.liquidGlass.cache === "stale"
+                ? qsTr("source changed · reconvert deliberately in Liquid Glass Icons")
+                : qsTr("no current local conversion")
+        value: root.liquidGlass.cache || qsTr("missing")
     }
 
     InfoRow {
-        icon: root.iconStatus.canonicalState === "validated" ? "verified" : "hourglass_top"
-        label: qsTr("Canonical asset")
-        subtext: root.iconStatus.error || qsTr("source fingerprint %1").arg((root.iconStatus.fingerprint || "").slice(0, 12))
-        value: root.iconStatus.canonicalState || qsTr("missing")
-        iconColour: root.iconStatus.canonicalState === "validated" ? Colours.palette.m3primary : Colours.palette.m3tertiary
-    }
-
-    InfoRow {
-        visible: root.queueStatus.state !== "none"
-        icon: root.queueStatus.state === "running" ? "play_arrow" : root.queueStatus.state === "failed" ? "error" : "hourglass_top"
-        label: qsTr("Conversion job")
-        subtext: root.queueStatus.lastError || (root.queueStatus.provider ? qsTr("provider %1 · attempt %2").arg(root.queueStatus.provider).arg(root.queueStatus.attempts || 0) : "")
-        value: root.queueStatus.state || qsTr("none")
-        iconColour: root.queueStatus.state === "failed" ? Colours.palette.m3error : Colours.palette.m3tertiary
-    }
-
-    InfoRow {
-        icon: "palette"
-        label: qsTr("Active appearance")
-        subtext: root.iconStatus.active ? qsTr("served by the Vesper adaptive icon theme") : qsTr("using inherited packaged/fallback icon")
-        value: root.iconStatus.active ? qsTr("Vesper") : qsTr("original")
-    }
-
-    ToggleRow {
-        text: qsTr("Exclude this app")
-        subtext: qsTr("always keep the original packaged icon for this application")
-        checked: root.iconStatus.excluded || false
-        disabled: !root.app || iconAction.running
-        onToggled: root.runIcon(["app-exclude", root.app.id, checked ? "on" : "off"], checked ? qsTr("App excluded from adaptation") : qsTr("App returned to adaptive icons"))
+        icon: root.liquidGlass.managed ? "verified" : "image_not_supported"
+        label: qsTr("Desktop override")
+        subtext: root.liquidGlass.managed
+            ? qsTr("user hicolor override is active")
+            : qsTr("original packaged icon remains active")
+        value: root.liquidGlass.managed ? qsTr("managed") : qsTr("original")
+        iconColour: root.liquidGlass.managed ? Colours.palette.m3primary : Colours.palette.m3tertiary
     }
 
     RowButton {
-        icon: "restart_alt"
-        text: qsTr("Retry this icon")
-        subtext: qsTr("discard this app's canonical cache and retry its conversion job when needed")
+        icon: "sync"
+        text: qsTr("Reapply this icon")
+        subtext: qsTr("render the current local cache for the active appearance without AI")
         trailingIcon: "refresh"
-        disabled: !root.app || iconAction.running
-        onClicked: root.runIcon(["app-retry", root.app.id], qsTr("Adaptive icon queued for reconciliation"))
+        disabled: !root.app || iconAction.running || root.liquidGlass.cache !== "current"
+        onClicked: root.runLiquidGlass(["apply", "--desktop-id", root.app.id, "--appearance", Colours.light ? "tinted-light" : "tinted-dark", "--json"], qsTr("Liquid Glass icon applied from the local cache"))
     }
 
     RowButton {
-        icon: "download"
-        text: qsTr("Export this icon")
-        subtext: qsTr("all local appearances plus the canonical .vicon package · never triggers AI")
-        trailingIcon: "download"
-        disabled: !root.app || iconAction.running || root.iconStatus.canonicalState !== "validated"
-        onClicked: root.runIcon(["export-app", root.app.id], qsTr("Icon exported"))
+        icon: "restore"
+        text: qsTr("Restore original icon")
+        subtext: qsTr("remove only the managed user desktop override")
+        trailingIcon: "restore"
+        disabled: !root.app || iconAction.running || !root.liquidGlass.managed
+        onClicked: root.runLiquidGlass(["restore", "--desktop-id", root.app.id, "--json"], qsTr("Original icon restored"))
     }
 
     StyledText {

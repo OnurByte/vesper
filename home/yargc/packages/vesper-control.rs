@@ -26,7 +26,9 @@ impl Drop for LockGuard {
 }
 
 fn home() -> PathBuf {
-    env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/nonexistent"))
+    env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/nonexistent"))
 }
 
 fn state_root() -> PathBuf {
@@ -53,7 +55,6 @@ fn runtime_root() -> PathBuf {
 #[derive(Clone, Copy)]
 struct VicinaeSettings {
     follow_theme: bool,
-    follow_icons: bool,
     use_glass: bool,
     close_on_focus_loss: bool,
     pop_to_root_on_close: bool,
@@ -64,7 +65,6 @@ impl Default for VicinaeSettings {
     fn default() -> Self {
         Self {
             follow_theme: true,
-            follow_icons: true,
             use_glass: true,
             close_on_focus_loss: true,
             pop_to_root_on_close: true,
@@ -77,12 +77,6 @@ fn xdg_config_home() -> PathBuf {
     env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| home().join(".config"))
-}
-
-fn xdg_state_home() -> PathBuf {
-    env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home().join(".local/state"))
 }
 
 fn xdg_data_home() -> PathBuf {
@@ -114,7 +108,10 @@ fn write_atomic(path: &Path, body: &str) -> Result<(), String> {
         .parent()
         .ok_or_else(|| format!("invalid path: {}", path.display()))?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("vesper");
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("vesper");
     let temporary = parent.join(format!(".{name}.{}.tmp", std::process::id()));
     fs::write(&temporary, body).map_err(|error| error.to_string())?;
     fs::rename(&temporary, path).map_err(|error| error.to_string())
@@ -133,7 +130,6 @@ fn load_vicinae_settings() -> VicinaeSettings {
         };
         match key.trim() {
             "followTheme" => settings.follow_theme = parse_bool(value),
-            "followIcons" => settings.follow_icons = parse_bool(value),
             "useGlass" => settings.use_glass = parse_bool(value),
             "closeOnFocusLoss" => settings.close_on_focus_loss = parse_bool(value),
             "popToRootOnClose" => settings.pop_to_root_on_close = parse_bool(value),
@@ -146,9 +142,8 @@ fn load_vicinae_settings() -> VicinaeSettings {
 
 fn save_vicinae_settings(settings: VicinaeSettings) -> Result<(), String> {
     let body = format!(
-        "followTheme={}\nfollowIcons={}\nuseGlass={}\ncloseOnFocusLoss={}\npopToRootOnClose={}\nlayerShell={}\n",
+        "followTheme={}\nuseGlass={}\ncloseOnFocusLoss={}\npopToRootOnClose={}\nlayerShell={}\n",
         if settings.follow_theme { 1 } else { 0 },
-        if settings.follow_icons { 1 } else { 0 },
         if settings.use_glass { 1 } else { 0 },
         if settings.close_on_focus_loss { 1 } else { 0 },
         if settings.pop_to_root_on_close { 1 } else { 0 },
@@ -174,17 +169,15 @@ fn current_accent() -> String {
     if let Ok(content) = fs::read_to_string(lua) {
         if let Some(value) = content.lines().find_map(|line| {
             let (key, value) = line.split_once('=')?;
-            (key.trim() == "primary").then(|| normalise_hex(value)).flatten()
+            (key.trim() == "primary")
+                .then(|| normalise_hex(value))
+                .flatten()
         }) {
             return value;
         }
     }
 
-    let generated = xdg_state_home().join("caelestia/theme/vesper-icons");
-    fs::read_to_string(generated)
-        .ok()
-        .and_then(|value| normalise_hex(&value))
-        .unwrap_or_else(|| "#89b4fa".to_string())
+    "#89b4fa".to_string()
 }
 
 fn vicinae_theme(mode: &str, accent: &str) -> String {
@@ -201,12 +194,19 @@ fn vicinae_theme(mode: &str, accent: &str) -> String {
 }
 
 fn vicinae_import(settings: VicinaeSettings) -> String {
-    let light_theme = if settings.follow_theme { "vesper-light" } else { "vicinae-light" };
-    let dark_theme = if settings.follow_theme { "vesper-dark" } else { "vicinae-dark" };
-    let icon_theme = if settings.follow_icons { "Vesper-Adaptive" } else { "auto" };
+    let light_theme = if settings.follow_theme {
+        "vesper-light"
+    } else {
+        "vicinae-light"
+    };
+    let dark_theme = if settings.follow_theme {
+        "vesper-dark"
+    } else {
+        "vicinae-dark"
+    };
     let opacity = if settings.use_glass { "0.92" } else { "1.0" };
     format!(
-        "{{\n  \"$schema\": \"https://vicinae.com/schemas/config.json\",\n  \"close_on_focus_loss\": {},\n  \"pop_to_root_on_close\": {},\n  \"theme\": {{\n    \"light\": {{\"name\": \"{light_theme}\", \"icon_theme\": \"{icon_theme}\"}},\n    \"dark\": {{\"name\": \"{dark_theme}\", \"icon_theme\": \"{icon_theme}\"}}\n  }},\n  \"launcher_window\": {{\n    \"layer_shell\": {{\"enabled\": {}}},\n    \"opacity\": {opacity}\n  }}\n}}\n",
+        "{{\n  \"$schema\": \"https://vicinae.com/schemas/config.json\",\n  \"close_on_focus_loss\": {},\n  \"pop_to_root_on_close\": {},\n  \"theme\": {{\n    \"light\": {{\"name\": \"{light_theme}\", \"icon_theme\": \"auto\"}},\n    \"dark\": {{\"name\": \"{dark_theme}\", \"icon_theme\": \"auto\"}}\n  }},\n  \"launcher_window\": {{\n    \"layer_shell\": {{\"enabled\": {}}},\n    \"opacity\": {opacity}\n  }}\n}}\n",
         if settings.close_on_focus_loss { "true" } else { "false" },
         if settings.pop_to_root_on_close { "true" } else { "false" },
         if settings.layer_shell { "true" } else { "false" },
@@ -218,16 +218,18 @@ fn vicinae_sync_theme() -> Result<(), String> {
     let accent = current_accent();
     save_vicinae_settings(settings)?;
     write_atomic(&vicinae_import_path(), &vicinae_import(settings))?;
-    write_atomic(&vicinae_theme_path("light"), &vicinae_theme("light", &accent))?;
+    write_atomic(
+        &vicinae_theme_path("light"),
+        &vicinae_theme("light", &accent),
+    )?;
     write_atomic(&vicinae_theme_path("dark"), &vicinae_theme("dark", &accent))
 }
 
 fn vicinae_status() {
     let settings = load_vicinae_settings();
     println!(
-        "{{\"followTheme\":{},\"followIcons\":{},\"useGlass\":{},\"closeOnFocusLoss\":{},\"popToRootOnClose\":{},\"layerShell\":{},\"accent\":\"{}\"}}",
+        "{{\"followTheme\":{},\"useGlass\":{},\"closeOnFocusLoss\":{},\"popToRootOnClose\":{},\"layerShell\":{},\"accent\":\"{}\"}}",
         settings.follow_theme,
-        settings.follow_icons,
         settings.use_glass,
         settings.close_on_focus_loss,
         settings.pop_to_root_on_close,
@@ -244,7 +246,6 @@ fn vicinae_set(key: &str, value: &str) -> Result<(), String> {
     };
     match key {
         "follow-theme" => settings.follow_theme = value,
-        "follow-icons" => settings.follow_icons = value,
         "use-glass" => settings.use_glass = value,
         "close-on-focus-loss" => settings.close_on_focus_loss = value,
         "pop-to-root-on-close" => settings.pop_to_root_on_close = value,
@@ -284,7 +285,10 @@ fn output(command: &str, args: &[&str]) -> Result<String, String> {
     if !result.status.success() {
         let stderr = String::from_utf8_lossy(&result.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
-            format!("{command} exited with {}", result.status.code().unwrap_or(-1))
+            format!(
+                "{command} exited with {}",
+                result.status.code().unwrap_or(-1)
+            )
         } else {
             stderr
         });
@@ -319,8 +323,17 @@ fn credential_configured(id: &str) -> bool {
 }
 
 fn credential_lookup(id: &str) -> Result<String, String> {
-    output("secret-tool", &["lookup", "service", "vesper-ai", "provider", id])
-        .and_then(|value| if value.is_empty() { Err("credential is empty".to_string()) } else { Ok(value) })
+    output(
+        "secret-tool",
+        &["lookup", "service", "vesper-ai", "provider", id],
+    )
+    .and_then(|value| {
+        if value.is_empty() {
+            Err("credential is empty".to_string())
+        } else {
+            Ok(value)
+        }
+    })
 }
 
 fn stdin_line() -> Result<String, String> {
@@ -358,16 +371,24 @@ fn credential_set(id: &str) -> Result<(), String> {
         .map_err(|error| format!("failed to start secret-tool: {error}"))?;
 
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(key.as_bytes()).map_err(|error| error.to_string())?;
+        stdin
+            .write_all(key.as_bytes())
+            .map_err(|error| error.to_string())?;
         stdin.write_all(b"\n").map_err(|error| error.to_string())?;
     }
 
-    let result = child.wait_with_output().map_err(|error| error.to_string())?;
+    let result = child
+        .wait_with_output()
+        .map_err(|error| error.to_string())?;
     if result.status.success() {
         Ok(())
     } else {
         let message = String::from_utf8_lossy(&result.stderr).trim().to_string();
-        Err(if message.is_empty() { "Secret Service rejected the API key".to_string() } else { message })
+        Err(if message.is_empty() {
+            "Secret Service rejected the API key".to_string()
+        } else {
+            message
+        })
     }
 }
 
@@ -381,12 +402,17 @@ fn credential_clear(id: &str) -> Result<(), String> {
         Ok(())
     } else {
         let message = String::from_utf8_lossy(&result.stderr).trim().to_string();
-        Err(if message.is_empty() { "failed to clear credential".to_string() } else { message })
+        Err(if message.is_empty() {
+            "failed to clear credential".to_string()
+        } else {
+            message
+        })
     }
 }
 
 fn credential_exec(id: &str, command: &[String]) -> ! {
-    let (_, _, env_name) = provider(id).unwrap_or_else(|| print_error(&format!("unknown provider: {id}")));
+    let (_, _, env_name) =
+        provider(id).unwrap_or_else(|| print_error(&format!("unknown provider: {id}")));
     if command.is_empty() {
         print_error("credential exec needs a command");
     }
@@ -431,7 +457,11 @@ fn ai_status() {
                 json_escape(id),
                 json_escape(name),
                 json_escape(env_name),
-                if credential_configured(id) { "true" } else { "false" }
+                if credential_configured(id) {
+                    "true"
+                } else {
+                    "false"
+                }
             )
         })
         .collect::<Vec<_>>();
@@ -470,7 +500,9 @@ fn nm_radio_state(radio: &str) -> Result<bool, String> {
     match output("nmcli", &["radio", radio])?.as_str() {
         "enabled" => Ok(true),
         "disabled" => Ok(false),
-        value => Err(format!("NetworkManager returned an unknown {radio} state: {value}")),
+        value => Err(format!(
+            "NetworkManager returned an unknown {radio} state: {value}"
+        )),
     }
 }
 
@@ -481,7 +513,9 @@ fn bluetooth_power_state() -> Result<Option<bool>, String> {
             return match value {
                 "yes" => Ok(Some(true)),
                 "no" => Ok(Some(false)),
-                value => Err(format!("bluetoothctl returned an unknown power state: {value}")),
+                value => Err(format!(
+                    "bluetoothctl returned an unknown power state: {value}"
+                )),
             };
         }
     }
@@ -497,7 +531,11 @@ fn radio_state() -> Result<RadioState, String> {
 }
 
 fn active_connection() -> Option<String> {
-    let text = output("nmcli", &["-t", "-f", "NAME,TYPE", "connection", "show", "--active"]).ok()?;
+    let text = output(
+        "nmcli",
+        &["-t", "-f", "NAME,TYPE", "connection", "show", "--active"],
+    )
+    .ok()?;
     for line in text.lines() {
         if let Some((name, kind)) = line.rsplit_once(':') {
             if kind == "802-11-wireless" || kind == "wifi" {
@@ -588,7 +626,11 @@ fn write_airplane_state(state: RadioState) -> Result<(), String> {
     };
     write_atomic(
         &airplane_state_path(),
-        &format!("wifi={}\nwwan={}\nbluetooth={bluetooth}\n", if state.wifi { "on" } else { "off" }, if state.wwan { "on" } else { "off" }),
+        &format!(
+            "wifi={}\nwwan={}\nbluetooth={bluetooth}\n",
+            if state.wifi { "on" } else { "off" },
+            if state.wwan { "on" } else { "off" }
+        ),
     )
 }
 
@@ -656,7 +698,11 @@ fn wifi_qr() -> Result<PathBuf, String> {
             .replace(':', "\\:")
     }
 
-    let auth = if key_mgmt.is_empty() || key_mgmt == "none" { "nopass" } else { "WPA" };
+    let auth = if key_mgmt.is_empty() || key_mgmt == "none" {
+        "nopass"
+    } else {
+        "WPA"
+    };
     let payload = format!(
         "WIFI:T:{};S:{};P:{};;",
         auth,
@@ -679,9 +725,7 @@ fn wifi_qr() -> Result<PathBuf, String> {
         stdin
             .write_all(payload.as_bytes())
             .map_err(|error| error.to_string())?;
-        stdin
-            .write_all(b"\n")
-            .map_err(|error| error.to_string())?;
+        stdin.write_all(b"\n").map_err(|error| error.to_string())?;
     }
 
     let result = child
@@ -699,7 +743,10 @@ fn proxy_set() -> Result<(), String> {
     if value.is_empty() || value.contains('\n') || value.contains('\r') || value.contains('"') {
         return Err("invalid proxy URL".to_string());
     }
-    if !(value.starts_with("http://") || value.starts_with("https://") || value.starts_with("socks5://")) {
+    if !(value.starts_with("http://")
+        || value.starts_with("https://")
+        || value.starts_with("socks5://"))
+    {
         return Err("proxy must start with http://, https:// or socks5://".to_string());
     }
     let content = if value.starts_with("socks5://") {
@@ -738,7 +785,10 @@ fn write_private_atomic(path: &Path, body: &str) -> Result<(), String> {
         .parent()
         .ok_or_else(|| format!("invalid path: {}", path.display()))?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("vesper");
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("vesper");
     let temporary = parent.join(format!(".{name}.{}.tmp", std::process::id()));
     let mut file = OpenOptions::new()
         .write(true)
@@ -746,7 +796,8 @@ fn write_private_atomic(path: &Path, body: &str) -> Result<(), String> {
         .mode(0o600)
         .open(&temporary)
         .map_err(|error| error.to_string())?;
-    file.write_all(body.as_bytes()).map_err(|error| error.to_string())?;
+    file.write_all(body.as_bytes())
+        .map_err(|error| error.to_string())?;
     drop(file);
     fs::rename(&temporary, path).map_err(|error| error.to_string())
 }
@@ -762,7 +813,13 @@ fn wellbeing_dir() -> PathBuf {
 fn sanitise_app(value: &str) -> String {
     value
         .chars()
-        .map(|ch| if ch == '\t' || ch == '\n' || ch == '\r' { ' ' } else { ch })
+        .map(|ch| {
+            if ch == '\t' || ch == '\n' || ch == '\r' {
+                ' '
+            } else {
+                ch
+            }
+        })
         .collect::<String>()
         .trim()
         .to_string()
@@ -802,29 +859,6 @@ fn extract_json_string(json: &str, key: &str) -> Option<String> {
     None
 }
 
-fn identity_path() -> PathBuf {
-    xdg_state_home().join("vesper/adaptive-icons/identity.json")
-}
-
-fn canonical_app_id(runtime_id: &str) -> Option<String> {
-    let output = Command::new("jq")
-        .args([
-            "-r",
-            "--arg",
-            "alias",
-            runtime_id,
-            "(.aliases[$alias] // .aliases[($alias | ascii_downcase)]).desktopId // empty",
-        ])
-        .arg(identity_path())
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (!value.is_empty()).then_some(value)
-}
-
 fn active_app() -> Option<String> {
     let json = output("hyprctl", &["activewindow", "-j"]).ok()?;
     let value = extract_json_string(&json, "class")
@@ -833,7 +867,7 @@ fn active_app() -> Option<String> {
     if value.is_empty() {
         None
     } else {
-        Some(canonical_app_id(&value).unwrap_or(value))
+        Some(value)
     }
 }
 
@@ -856,7 +890,14 @@ fn session_allows_wellbeing_live() -> Option<bool> {
         return None;
     }
     let output = Command::new("loginctl")
-        .args(["show-session", session.trim(), "-p", "IdleHint", "-p", "LockedHint"])
+        .args([
+            "show-session",
+            session.trim(),
+            "-p",
+            "IdleHint",
+            "-p",
+            "LockedHint",
+        ])
         .output()
         .ok()?;
     if !output.status.success() {
@@ -878,7 +919,9 @@ fn load_wellbeing(path: &Path) -> BTreeMap<String, u64> {
 }
 
 fn write_wellbeing(path: &Path, values: &BTreeMap<String, u64>) -> Result<(), String> {
-    let parent = path.parent().ok_or_else(|| "invalid wellbeing path".to_string())?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| "invalid wellbeing path".to_string())?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let tmp = parent.join(format!(".{}.tmp", std::process::id()));
     let mut data = String::new();
@@ -966,16 +1009,23 @@ fn wellbeing_summary() {
     items.truncate(12);
     let json = items
         .iter()
-        .map(|(name, seconds)| format!("{{\"app\":\"{}\",\"seconds\":{}}}", json_escape(name), seconds))
+        .map(|(name, seconds)| {
+            format!(
+                "{{\"app\":\"{}\",\"seconds\":{}}}",
+                json_escape(name),
+                seconds
+            )
+        })
         .collect::<Vec<_>>();
-    println!("{{\"totalSeconds\":{},\"apps\":[{}]}}", total, json.join(","));
+    println!(
+        "{{\"totalSeconds\":{},\"apps\":[{}]}}",
+        total,
+        json.join(",")
+    );
 }
 
-fn wellbeing_identity_keys(id: &str, canonical: Option<&str>) -> Vec<String> {
+fn wellbeing_identity_keys(id: &str) -> Vec<String> {
     let mut keys = Vec::new();
-    if let Some(canonical) = canonical.filter(|value| !value.is_empty()) {
-        keys.push(canonical.to_string());
-    }
     if !id.is_empty() && !keys.iter().any(|key| key == id) {
         keys.push(id.to_string());
     }
@@ -987,18 +1037,21 @@ fn wellbeing_identity_keys(id: &str, canonical: Option<&str>) -> Vec<String> {
     keys
 }
 
-fn wellbeing_seconds_for(id: &str) -> u64 {
-    let canonical = canonical_app_id(id);
-    let keys = wellbeing_identity_keys(id, canonical.as_deref());
+fn wellbeing_seconds_from_values(values: &BTreeMap<String, u64>, id: &str) -> u64 {
+    let keys = wellbeing_identity_keys(id);
     if keys.is_empty() {
         return 0;
     }
-    let path = wellbeing_dir().join(format!("{}.tsv", today()));
-    load_wellbeing(&path)
-        .into_iter()
-        .filter(|(name, _)| keys.iter().any(|key| name == key))
+    values
+        .iter()
+        .filter(|(name, _)| keys.iter().any(|key| key == *name))
         .map(|(_, seconds)| seconds)
         .sum()
+}
+
+fn wellbeing_seconds_for(id: &str) -> u64 {
+    let path = wellbeing_dir().join(format!("{}.tsv", today()));
+    wellbeing_seconds_from_values(&load_wellbeing(&path), id)
 }
 
 #[derive(Clone, Debug)]
@@ -1042,7 +1095,9 @@ fn application_data_dirs() -> Vec<PathBuf> {
         }
     }
     if let Ok(user) = env::var("USER") {
-        let path = PathBuf::from("/etc/profiles/per-user").join(user).join("share");
+        let path = PathBuf::from("/etc/profiles/per-user")
+            .join(user)
+            .join("share");
         if path.exists() {
             push_unique_path(&mut paths, path);
         }
@@ -1108,13 +1163,13 @@ fn desktop_entry_value(path: &Path, wanted: &str) -> Option<String> {
     None
 }
 
-fn desktop_owner(id: &str) -> Option<DesktopOwner> {
+fn desktop_owner_in_data_dirs(id: &str, data_dirs: &[PathBuf]) -> Option<DesktopOwner> {
     let wanted = if id.ends_with(".desktop") {
         id.to_string()
     } else {
         format!("{id}.desktop")
     };
-    for data_dir in application_data_dirs() {
+    for data_dir in data_dirs {
         let root = data_dir.join("applications");
         if !root.is_dir() {
             continue;
@@ -1131,9 +1186,17 @@ fn desktop_owner(id: &str) -> Option<DesktopOwner> {
                 let exported = data_dir.ends_with("flatpak/exports/share");
                 exported.then(|| wanted.trim_end_matches(".desktop").to_string())
             });
-        return Some(DesktopOwner { path, flatpak_id, hidden });
+        return Some(DesktopOwner {
+            path,
+            flatpak_id,
+            hidden,
+        });
     }
     None
+}
+
+fn desktop_owner(id: &str) -> Option<DesktopOwner> {
+    desktop_owner_in_data_dirs(id, &application_data_dirs())
 }
 
 fn flatpak_owner(id: &str) -> Option<FlatpakOwner> {
@@ -1143,10 +1206,18 @@ fn flatpak_owner(id: &str) -> Option<FlatpakOwner> {
     }
     let flatpak_id = desktop.flatpak_id?;
     if success("flatpak", &["info", "--user", &flatpak_id]) {
-        return Some(FlatpakOwner { desktop_path: desktop.path, id: flatpak_id, scope: "user" });
+        return Some(FlatpakOwner {
+            desktop_path: desktop.path,
+            id: flatpak_id,
+            scope: "user",
+        });
     }
     if success("flatpak", &["info", "--system", &flatpak_id]) {
-        return Some(FlatpakOwner { desktop_path: desktop.path, id: flatpak_id, scope: "system" });
+        return Some(FlatpakOwner {
+            desktop_path: desktop.path,
+            id: flatpak_id,
+            scope: "system",
+        });
     }
     None
 }
@@ -1154,7 +1225,11 @@ fn flatpak_owner(id: &str) -> Option<FlatpakOwner> {
 fn app_status(id: &str) {
     let desktop = desktop_owner(id);
     let flatpak = flatpak_owner(id);
-    let unresolved_flatpak = desktop.as_ref().and_then(|owner| owner.flatpak_id.as_ref()).is_some() && flatpak.is_none();
+    let unresolved_flatpak = desktop
+        .as_ref()
+        .and_then(|owner| owner.flatpak_id.as_ref())
+        .is_some()
+        && flatpak.is_none();
     let sandbox = if flatpak.is_some() {
         "flatpak"
     } else if unresolved_flatpak || desktop.is_none() {
@@ -1166,10 +1241,19 @@ fn app_status(id: &str) {
         .as_ref()
         .and_then(|owner| output("flatpak", &["info", "--show-permissions", &owner.id]).ok())
         .unwrap_or_default();
-    let flatpak_id = flatpak.as_ref().map(|owner| owner.id.as_str()).unwrap_or("");
+    let flatpak_id = flatpak
+        .as_ref()
+        .map(|owner| owner.id.as_str())
+        .unwrap_or("");
     let owner = flatpak
         .as_ref()
-        .map(|value| if value.scope == "user" { "flatpak-user" } else { "flatpak-system" })
+        .map(|value| {
+            if value.scope == "user" {
+                "flatpak-user"
+            } else {
+                "flatpak-system"
+            }
+        })
         .or_else(|| desktop.as_ref().map(|_| "desktop-entry"))
         .unwrap_or("unresolved");
     let desktop_path = flatpak
@@ -1192,7 +1276,8 @@ fn app_status(id: &str) {
 }
 
 fn app_permission(id: &str, permission: &str, enabled: bool) -> Result<(), String> {
-    let owner = flatpak_owner(id).ok_or_else(|| "effective desktop entry is not an installed Flatpak owner".to_string())?;
+    let owner = flatpak_owner(id)
+        .ok_or_else(|| "effective desktop entry is not an installed Flatpak owner".to_string())?;
     let flag = match (permission, enabled) {
         ("network", true) => "--share=network",
         ("network", false) => "--unshare=network",
@@ -1212,7 +1297,8 @@ fn app_permission(id: &str, permission: &str, enabled: bool) -> Result<(), Strin
 }
 
 fn app_reset_permissions(id: &str) -> Result<(), String> {
-    let owner = flatpak_owner(id).ok_or_else(|| "effective desktop entry is not an installed Flatpak owner".to_string())?;
+    let owner = flatpak_owner(id)
+        .ok_or_else(|| "effective desktop entry is not an installed Flatpak owner".to_string())?;
     let result = Command::new("flatpak")
         .args(["override", "--user", "--reset", &owner.id])
         .output()
@@ -1225,7 +1311,8 @@ fn app_reset_permissions(id: &str) -> Result<(), String> {
 }
 
 fn app_remove(id: &str) -> Result<(), String> {
-    let owner = flatpak_owner(id).ok_or_else(|| "effective desktop entry is not an installed Flatpak owner".to_string())?;
+    let owner = flatpak_owner(id)
+        .ok_or_else(|| "effective desktop entry is not an installed Flatpak owner".to_string())?;
     if owner.scope != "user" {
         return Err("removal is only available for user-installed Flatpak apps here".to_string());
     }
@@ -1258,7 +1345,7 @@ fn usage() -> ! {
            network wifi-qr\n\
            proxy status|set|clear\n\
            vicinae-status\n\
-           vicinae-setting follow-theme|follow-icons|use-glass|close-on-focus-loss|pop-to-root-on-close|layer-shell on|off\n\
+           vicinae-setting follow-theme|use-glass|close-on-focus-loss|pop-to-root-on-close|layer-shell on|off\n\
            vicinae-sync-theme\n\
            wellbeing-daemon\n\
            wellbeing-summary\n\
@@ -1278,7 +1365,14 @@ fn main() {
             if provider(id).is_none() {
                 print_error(&format!("unknown provider: {id}"));
             }
-            println!("{}", if credential_configured(id) { "configured" } else { "missing" });
+            println!(
+                "{}",
+                if credential_configured(id) {
+                    "configured"
+                } else {
+                    "missing"
+                }
+            );
         }
         [group, action, id] if group == "credential" && action == "set" => {
             credential_set(id).unwrap_or_else(|error| print_error(&error));
@@ -1341,12 +1435,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        airplane_state_path, read_airplane_state, session_allows_wellbeing,
-        desktop_entry_value, desktop_file_id, wellbeing_identity_keys, write_airplane_state,
-        RadioState,
+        airplane_state_path, desktop_entry_value, desktop_file_id, desktop_owner_in_data_dirs,
+        read_airplane_state, session_allows_wellbeing, wellbeing_identity_keys,
+        wellbeing_seconds_from_values, write_airplane_state, write_private_atomic, RadioState,
     };
+    use std::collections::BTreeMap;
     use std::env;
     use std::fs;
+    use std::os::unix::fs::PermissionsExt;
 
     #[test]
     fn wellbeing_requires_an_explicit_unlocked_active_session() {
@@ -1366,15 +1462,23 @@ mod tests {
     }
 
     #[test]
-    fn wellbeing_identity_keys_are_exact_and_canonical_first() {
+    fn wellbeing_identity_keys_are_exact_and_bounded() {
         assert_eq!(
-            wellbeing_identity_keys("org.example.desktop", Some("org.example.desktop")),
+            wellbeing_identity_keys("org.example.desktop"),
             vec!["org.example.desktop", "org.example"]
         );
-        assert_eq!(
-            wellbeing_identity_keys("Firefox", Some("firefox.desktop")),
-            vec!["firefox.desktop", "Firefox"]
-        );
+        assert_eq!(wellbeing_identity_keys("Firefox"), vec!["Firefox"]);
+    }
+
+    #[test]
+    fn wellbeing_does_not_merge_similarly_named_apps() {
+        let values = BTreeMap::from([
+            ("org.example.Editor".to_string(), 30),
+            ("org.example.EditorPro".to_string(), 90),
+            ("Editor".to_string(), 15),
+        ]);
+        assert_eq!(wellbeing_seconds_from_values(&values, "org.example.Editor.desktop"), 30);
+        assert_eq!(wellbeing_seconds_from_values(&values, "Editor"), 15);
     }
 
     #[test]
@@ -1382,12 +1486,45 @@ mod tests {
         let runtime = env::temp_dir().join(format!("vesper-control-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&runtime);
         env::set_var("XDG_RUNTIME_DIR", &runtime);
-        let state = RadioState { wifi: true, wwan: false, bluetooth: Some(true) };
+        let state = RadioState {
+            wifi: true,
+            wwan: false,
+            bluetooth: Some(true),
+        };
         write_airplane_state(state).expect("save airplane state");
         assert_eq!(read_airplane_state().expect("load airplane state"), state);
         fs::remove_file(airplane_state_path()).expect("remove airplane state");
         let _ = fs::remove_dir_all(runtime.join("vesper"));
         let _ = fs::remove_dir_all(runtime);
+    }
+
+    #[test]
+    fn private_atomic_write_keeps_proxy_credentials_private() {
+        let root =
+            env::temp_dir().join(format!("vesper-proxy-private-test-{}", std::process::id()));
+        let path = root.join("environment.d/90-vesper-proxy.conf");
+        let _ = fs::remove_dir_all(&root);
+        write_private_atomic(&path, "HTTPS_PROXY=\"https://user:secret@example.test\"\n")
+            .expect("write private proxy environment");
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn failed_private_atomic_write_does_not_create_effective_proxy_state() {
+        let root =
+            env::temp_dir().join(format!("vesper-proxy-failure-test-{}", std::process::id()));
+        let blocker = root.join("not-a-directory");
+        let path = blocker.join("90-vesper-proxy.conf");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&blocker, "block writes here").unwrap();
+        assert!(write_private_atomic(&path, "ALL_PROXY=\"socks5://localhost:9050\"\n").is_err());
+        assert!(!path.exists());
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -1400,9 +1537,46 @@ mod tests {
             "[Desktop Entry]\nType=Application\nX-Flatpak=org.example.App\n",
         )
         .unwrap();
-        assert_eq!(desktop_file_id(&path, &root.join("applications")).as_deref(), Some("org.example.App.desktop"));
-        assert_eq!(desktop_entry_value(&path, "X-Flatpak").as_deref(), Some("org.example.App"));
+        assert_eq!(
+            desktop_file_id(&path, &root.join("applications")).as_deref(),
+            Some("org.example.App.desktop")
+        );
+        assert_eq!(
+            desktop_entry_value(&path, "X-Flatpak").as_deref(),
+            Some("org.example.App")
+        );
         assert_eq!(desktop_entry_value(&path, "Missing"), None);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn desktop_owner_keeps_the_first_effective_entry_on_id_collisions() {
+        let root = env::temp_dir().join(format!("vesper-owner-collision-test-{}", std::process::id()));
+        let native = root.join("native/share");
+        let flatpak = root.join("flatpak/exports/share");
+        let id = "org.example.App";
+        let native_entry = native.join("applications/org.example.App.desktop");
+        let flatpak_entry = flatpak.join("applications/org.example.App.desktop");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(native_entry.parent().unwrap()).unwrap();
+        fs::create_dir_all(flatpak_entry.parent().unwrap()).unwrap();
+        fs::write(&native_entry, "[Desktop Entry]\nType=Application\nName=Native App\n").unwrap();
+        fs::write(
+            &flatpak_entry,
+            "[Desktop Entry]\nType=Application\nX-Flatpak=org.example.App\n",
+        )
+        .unwrap();
+
+        let owner = desktop_owner_in_data_dirs(id, &[native.clone(), flatpak])
+            .expect("resolve effective desktop entry");
+        assert_eq!(owner.path, native_entry);
+        assert_eq!(owner.flatpak_id, None);
+
+        fs::write(&owner.path, "[Desktop Entry]\nType=Application\nHidden=true\n").unwrap();
+        let hidden = desktop_owner_in_data_dirs(id, &[native, root.join("flatpak/exports/share")])
+            .expect("keep hidden tombstone as the effective entry");
+        assert!(hidden.hidden);
+        assert_eq!(hidden.flatpak_id, None);
         let _ = fs::remove_dir_all(root);
     }
 }

@@ -18,7 +18,7 @@ Current Vesper-specific Settings integration includes:
 - `Vicinae` launcher settings for the primary Super shortcut, Vesper theme/accent following, controlled-glass opacity and launcher behavior
 - extended `Network` controls
 - `AI` settings and credentials
-- installed-app controls for permissions, wellbeing and adaptive icons
+- installed-app controls for permissions, wellbeing and optional Liquid Glass icon state
 - Vesper Store handoff through `Settings -> Apps`
 
 Caelestia still owns the ordinary desktop settings surfaces such as network, Bluetooth/devices, audio, updates, panels, apps, services, language/region and about.
@@ -62,10 +62,10 @@ Use these boundaries consistently:
 | AI | AI control-plane UX | `AI.md`, `AI-ANALYTICS.md` |
 | Automations | Hermes job management UX | `HERMES.md` |
 | Apps | installed-app inspector and wellbeing UX | `APPS-SETTINGS.md` |
-| Appearance | desktop visual controls | this document; adaptive icons remain `ADAPTIVE-ICONS.md` |
+| Appearance | desktop visual controls and local Liquid Glass cache application | this document + `ADAPTIVE-ICONS.md` |
 | Vicinae | launcher entry point, Vesper theme integration and enforceable launcher behavior | `APPS-SETTINGS.md` |
 | Services & Startup | curated Vesper service UX | this document + owning Nix modules |
-| Store | discovery/install application | `MARKETPLACE.md` |
+| Store | discovery/install application | `../../vesper-store/docs/MARKETPLACE.md` |
 
 Do not duplicate subsystem implementation rules in this file. Link to the canonical owner instead.
 
@@ -447,7 +447,7 @@ Useful inspectable state includes, when attributable:
 - autostart state
 - file associations
 - wellbeing
-- adaptive-icon state
+- optional Liquid Glass cache/override state
 
 Flatpak permissions may be editable where the backend can enforce them.
 Native Nix applications remain native/unsandboxed unless Vesper introduces a real sandbox launch profile.
@@ -472,7 +472,7 @@ Do not upload wellbeing history merely to generate charts or summaries.
 
 ## Appearance
 
-Appearance should expose system-wide visual controls, not adaptive-icon AI generation internals.
+Appearance should expose system-wide visual controls, not icon AI generation internals.
 
 Target controls may include:
 
@@ -485,22 +485,22 @@ Target controls may include:
 - shadow parameters
 - animation speed
 - reduced motion
-- adaptive-icon global appearance/material mode
+- apply managed Liquid Glass caches for the active appearance
 
 Ownership split remains:
 
 ```text
 Appearance
-  global visual/icon appearance
+  global visual controls and local cached-icon application
 
-AI
-  remote icon analysis/generation controls
+Liquid Glass sibling
+  explicit conversion and provider selection
 
 Apps
-  per-app regenerate/retry/exclude/original/diagnostics
+  per-app status, reapply and restore
 ```
 
-Adaptive-icon rendering and appearance semantics remain owned only by `ADAPTIVE-ICONS.md`.
+Liquid Glass rendering and conversion semantics remain owned only by `ADAPTIVE-ICONS.md` and its sibling documents.
 
 Hyprland visual values currently stored in Lua must not be described as editable until a structured settings backend exists.
 

@@ -105,7 +105,7 @@ Do not put decrypted values in Nix source, Git, shell history, process arguments
 - Bottles is a Windows-compatibility utility, not permission to restore a gaming stack.
 - Do not add gaming packages unless explicitly requested.
 - Do not re-add a night-light daemon unless explicitly requested.
-- Vesper Store architecture is owned by `docs/MARKETPLACE.md`; installed application management belongs to Settings -> Apps.
+- Vesper Store is owned by the sibling `../vesper-store/` project. Vesper owns only its declarative package integration and the Settings -> Apps handoff.
 - Native Nix applications must not receive fake Flatpak-style permission toggles. Real native restrictions require an actual sandbox launch profile first.
 - Wellbeing data stays local by default and must not be presented as exact human attention time when it comes from foreground-window sampling.
 - Adaptive icon architecture is owned only by `docs/ADAPTIVE-ICONS.md`.

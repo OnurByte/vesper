@@ -6,7 +6,6 @@ import {
   ExternalLink,
   Globe2,
   LockKeyhole,
-  Radar,
   RefreshCw,
   Shield,
   TerminalSquare,
@@ -46,6 +45,7 @@ import {
   formatTime,
   isHistoryUrl,
   mergeHistory,
+  type AnalyticsResponse,
   type Briefing,
   type HermesResponse,
   type HistoryItem,
@@ -67,6 +67,16 @@ const emptyHistory: HistoryResponse = {
   reason: "missing",
   stats: { totalVisits: 0, uniqueUrls: 0, todayVisits: 0 },
   items: [],
+}
+
+const emptyAnalytics: AnalyticsResponse = {
+  available: false,
+  reason: "missing",
+  stats: { totalVisits: 0, referrerVisits: 0, activeDays: 0, browserCount: 0 },
+  topSites: [],
+  activity: [],
+  referrers: [],
+  sources: [],
 }
 
 const emptyShortcuts: ShortcutsResponse = {
@@ -107,7 +117,7 @@ function StatCard({ label, value, detail }: { label: string; value: string; deta
 }
 
 function LoadingBlock({ className = "h-24" }: { className?: string }) {
-  return <Skeleton className={className} aria-label="yükleniyor" />
+  return <Skeleton className={className} aria-label="loading" />
 }
 
 function faviconUrl(value: string): string | null {
@@ -116,7 +126,7 @@ function faviconUrl(value: string): string | null {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       return null
     }
-    return `${url.origin}/favicon.ico`
+    return `/api/favicon?url=${encodeURIComponent(url.href)}`
   } catch {
     return null
   }
@@ -185,8 +195,8 @@ function ShortcutGrid({ state }: { state: SourceState<ShortcutsResponse> }) {
           </h2>
         </div>
         <Unavailable
-          title="Helium shortcuts kullanılamıyor"
-          description="Helium Preferences dosyası bulunamadı veya okunamadı."
+          title="Helium shortcuts unavailable"
+          description="The Helium Preferences file is missing or unreadable."
         />
       </section>
     )
@@ -242,8 +252,8 @@ function HistoryRows({ items, loading }: { items: HistoryItem[]; loading: boolea
   if (items.length === 0) {
     return (
       <Unavailable
-        title="Geçmiş boş"
-        description="Zen ve Helium’un okunabilir web geçmişinde gösterilecek kayıt yok."
+        title="No browsing history"
+        description="There are no readable web history records from Zen or Helium."
       />
     )
   }
@@ -291,23 +301,160 @@ function HistoryPanel({ helium, zen }: { helium: SourceState<HistoryResponse>; z
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle>Recent browsing</CardTitle>
-              <CardDescription>Zen + Helium · son 16 web ziyareti</CardDescription>
+              <CardDescription>Zen + Helium · latest 16 web visits</CardDescription>
             </div>
             <Badge variant="outline">local only</Badge>
           </div>
         </CardHeader>
         <CardContent>
           {unavailable ? (
-            <Unavailable title="Browser geçmişi kullanılamıyor" description="Zen veya Helium profil veritabanı bulunamadı." />
+            <Unavailable title="Browser history unavailable" description="No Zen or Helium profile database was found." />
           ) : (
             <HistoryRows items={items} loading={helium.loading || zen.loading} />
           )}
         </CardContent>
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-        <StatCard label="Zen visits" value={zenStats.totalVisits.toLocaleString("tr-TR")} detail={`${zenStats.uniqueUrls.toLocaleString("tr-TR")} benzersiz URL`} />
-        <StatCard label="Helium visits" value={heliumStats.totalVisits.toLocaleString("tr-TR")} detail={`${heliumStats.uniqueUrls.toLocaleString("tr-TR")} benzersiz URL`} />
-        <StatCard label="Today" value={(zenStats.todayVisits + heliumStats.todayVisits).toLocaleString("tr-TR")} detail="iki browser · bugün" />
+        <StatCard label="Zen visits" value={zenStats.totalVisits.toLocaleString("en-US")} detail={`${zenStats.uniqueUrls.toLocaleString("en-US")} unique URLs`} />
+        <StatCard label="Helium visits" value={heliumStats.totalVisits.toLocaleString("en-US")} detail={`${heliumStats.uniqueUrls.toLocaleString("en-US")} unique URLs`} />
+        <StatCard label="Today" value={(zenStats.todayVisits + heliumStats.todayVisits).toLocaleString("en-US")} detail="two browsers · today" />
+      </div>
+    </div>
+  )
+}
+
+function AnalyticsPanel({ state }: { state: SourceState<AnalyticsResponse> }) {
+  const data = state.data ?? emptyAnalytics
+  if (state.loading) {
+    return <LoadingBlock className="h-[34rem]" />
+  }
+  if (!data.available) {
+    return <Unavailable title="Analytics unavailable" description="No readable browser history database was found." />
+  }
+
+  const topSites = data.topSites.slice(0, 8)
+  const referrers = data.referrers.slice(0, 8)
+  const activity = data.activity.slice(-14)
+  const maxSiteVisits = Math.max(...topSites.map((site) => site.visits), 1)
+  const maxDayVisits = Math.max(...activity.map((day) => day.visits), 1)
+  const maxReferrerVisits = Math.max(...referrers.map((referrer) => referrer.visits), 1)
+  const peakDay = activity.reduce((peak, day) => (day.visits > peak.visits ? day : peak), activity[0])
+  const topSite = topSites[0]
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total visits" value={data.stats.totalVisits.toLocaleString("en-US")} detail="local browser history" />
+        <StatCard label="Top site" value={topSite?.domain ?? "--"} detail={topSite ? `${topSite.visits.toLocaleString("en-US")} visits` : "no site data"} />
+        <StatCard label="Active days" value={data.stats.activeDays.toLocaleString("en-US")} detail="latest 14-day window" />
+        <StatCard label="Referrer hits" value={data.stats.referrerVisits.toLocaleString("en-US")} detail={`${data.stats.browserCount} browser source${data.stats.browserCount === 1 ? "" : "s"}`} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>Top sites</CardTitle>
+                <CardDescription>Visit frequency across readable browser history.</CardDescription>
+              </div>
+              <Badge variant="outline">local only</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {topSites.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No site aggregates available.</p>
+            ) : (
+              topSites.map((site, index) => (
+                <div key={site.domain} className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{site.domain}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{site.visits.toLocaleString("en-US")}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                    <span className="block h-full rounded-full bg-primary transition-[width]" style={{ width: `${(site.visits / maxSiteVisits) * 100}%` }} />
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>Activity graph</CardTitle>
+                <CardDescription>Daily visits · latest 14 available days.</CardDescription>
+              </div>
+              {peakDay ? <Badge variant="secondary">peak {peakDay.visits.toLocaleString("en-US")}</Badge> : null}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {activity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No daily activity available.</p>
+            ) : (
+              <div className="flex h-52 items-end gap-1.5" role="img" aria-label="Daily browser visits graph">
+                {activity.map((day) => (
+                  <div key={day.date} className="group relative flex h-full min-w-0 flex-1 items-end justify-center pb-5">
+                    <span className="pointer-events-none absolute bottom-full mb-1 whitespace-nowrap font-mono text-[0.62rem] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                      {day.visits.toLocaleString("en-US")}
+                    </span>
+                    <span
+                      className="block max-h-full w-full min-w-1 rounded-t-sm bg-primary/75 transition-[height] group-hover:bg-primary"
+                      style={{ height: `${Math.max(8, (day.visits / maxDayVisits) * 100)}%` }}
+                      title={`${day.date}: ${day.visits.toLocaleString("en-US")} visits`}
+                    />
+                    <span className="absolute bottom-0 font-mono text-[0.62rem] text-muted-foreground">{day.date.slice(5)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Referrer flow</CardTitle>
+            <CardDescription>Browser navigation sources when the profile recorded them.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {referrers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No referrer records available.</p>
+            ) : (
+              referrers.map((referrer) => (
+                <div key={referrer.domain} className="flex items-center gap-3 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{referrer.domain}</span>
+                  <div className="hidden h-1.5 w-28 overflow-hidden rounded-full bg-muted sm:block" aria-hidden="true">
+                    <span className="block h-full rounded-full bg-accent-foreground/70" style={{ width: `${(referrer.visits / maxReferrerVisits) * 100}%` }} />
+                  </div>
+                  <span className="font-mono text-xs text-muted-foreground">{referrer.visits.toLocaleString("en-US")}</span>
+                </div>
+              ))
+            )}
+          </CardContent>
+          <CardFooter className="text-xs text-muted-foreground">Helium external referrer URLs + Zen navigation ancestry · local only</CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Browser sources</CardTitle>
+            <CardDescription>Where the aggregate data came from.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {data.sources.map((source) => (
+              <div key={source.browser} className="flex items-center gap-3 text-sm">
+                <Badge variant={source.browser === "Zen" ? "secondary" : "outline"}>{source.browser}</Badge>
+                <span className="flex-1" />
+                <span className="font-mono text-xs text-muted-foreground">{source.visits.toLocaleString("en-US")} visits</span>
+              </div>
+            ))}
+          </CardContent>
+          <CardFooter className="text-xs text-muted-foreground">No remote analytics or tracking is used.</CardFooter>
+        </Card>
       </div>
     </div>
   )
@@ -319,22 +466,22 @@ function HermesPanel({ state }: { state: SourceState<HermesResponse> }) {
     return <LoadingBlock className="h-72" />
   }
   if (!data.available) {
-    return <Unavailable title="Hermes beklemede" description="Henüz briefing veya source registry çıktısı yok." />
+    return <Unavailable title="Hermes is waiting" description="No briefing or source registry output is available yet." />
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Briefings" value={data.stats.totalBriefings.toLocaleString("tr-TR")} detail={`${data.stats.unread} okunmamış`} />
-        <StatCard label="High priority" value={data.stats.highPriority.toLocaleString("tr-TR")} detail="öncelikli araştırma" />
-        <StatCard label="Sources" value={data.stats.sourceCount.toLocaleString("tr-TR")} detail="registry kayıtları" />
-        <StatCard label="Coverage" value={Object.values(data.coverage).reduce((sum, value) => sum + value, 0).toLocaleString("tr-TR")} detail="son rapor sinyalleri" />
+        <StatCard label="Briefings" value={data.stats.totalBriefings.toLocaleString("en-US")} detail={`${data.stats.unread} unread`} />
+        <StatCard label="High priority" value={data.stats.highPriority.toLocaleString("en-US")} detail="priority research" />
+        <StatCard label="Sources" value={data.stats.sourceCount.toLocaleString("en-US")} detail="registry records" />
+        <StatCard label="Coverage" value={Object.values(data.coverage).reduce((sum, value) => sum + value, 0).toLocaleString("en-US")} detail="latest report signals" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Latest research</CardTitle>
-            <CardDescription>Hermes’in yazdığı briefing index’inden okunur.</CardDescription>
+            <CardDescription>Read from Hermes’ briefing index.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {data.briefings.map((briefing) => (
@@ -345,11 +492,11 @@ function HermesPanel({ state }: { state: SourceState<HermesResponse> }) {
         <Card>
           <CardHeader>
             <CardTitle>Source tiers</CardTitle>
-            <CardDescription>Hermes registry görünümü</CardDescription>
+            <CardDescription>Hermes registry overview</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {data.tiers.length === 0 ? (
-              <Badge variant="outline">tier verisi yok</Badge>
+              <Badge variant="outline">no tier data</Badge>
             ) : (
               data.tiers.map((tier) => (
                 <Badge key={tier.tier} variant="secondary">
@@ -362,7 +509,7 @@ function HermesPanel({ state }: { state: SourceState<HermesResponse> }) {
             {Object.entries(data.coverage).map(([key, value]) => (
               <span key={key} className="flex w-full justify-between gap-4">
                 <span>{key}</span>
-                <span className="font-mono">{value.toLocaleString("tr-TR")}</span>
+                <span className="font-mono">{value.toLocaleString("en-US")}</span>
               </span>
             ))}
           </CardFooter>
@@ -379,7 +526,7 @@ function BriefingCard({ briefing }: { briefing: Briefing }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="truncate text-sm">{briefing.title}</CardTitle>
-            <CardDescription className="mt-1">{briefing.lane} · {briefing.createdAt ? formatTime(briefing.createdAt) : "zaman yok"}</CardDescription>
+            <CardDescription className="mt-1">{briefing.lane} · {briefing.createdAt ? formatTime(briefing.createdAt) : "no timestamp"}</CardDescription>
           </div>
           <div className="flex shrink-0 gap-1">
             {briefing.unread ? <Badge>unread</Badge> : null}
@@ -388,10 +535,10 @@ function BriefingCard({ briefing }: { briefing: Briefing }) {
         </div>
       </CardHeader>
       <CardContent>
-        <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">{briefing.summary || "Özet yok."}</p>
+        <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">{briefing.summary || "No summary."}</p>
       </CardContent>
       <CardFooter className="justify-between gap-3 text-xs text-muted-foreground">
-        <span>{briefing.sourceCount} kaynak</span>
+        <span>{briefing.sourceCount} sources</span>
         <span>confidence {briefing.confidence}</span>
       </CardFooter>
     </Card>
@@ -412,11 +559,11 @@ function TorPanel({ state }: { state: SourceState<TorResponse> }) {
         headers: { Accept: "application/json" },
       })
       if (!response.ok) {
-        throw new Error(`Tor Browser açılamadı (${response.status})`)
+        throw new Error(`Could not open Tor Browser (${response.status})`)
       }
-      setMessage(`${item.name} Tor Browser’a gönderildi.`)
+      setMessage(`${item.name} sent to Tor Browser.`)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Tor Browser açılamadı.")
+      setMessage(error instanceof Error ? error.message : "Could not open Tor Browser.")
     } finally {
       setOpening(null)
     }
@@ -433,12 +580,12 @@ function TorPanel({ state }: { state: SourceState<TorResponse> }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
         <Shield aria-hidden="true" />
-        <span>Bu kaynaklar Zen veya Helium’da açılmaz. Buton yalnızca yerel Tor Browser’ı çağırır.</span>
+        <span>These sources do not open in Zen or Helium. The button only calls the local Tor Browser.</span>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Onion links" value={items.length.toLocaleString("tr-TR")} detail="gösterilen kaynak" />
-        <StatCard label="Pinned" value={pinnedCount.toLocaleString("tr-TR")} detail="Dread + Pitch" />
-        <StatCard label="Hermes" value={hermesCount.toLocaleString("tr-TR")} detail="registry’den gelen" />
+        <StatCard label="Onion links" value={items.length.toLocaleString("en-US")} detail="listed sources" />
+        <StatCard label="Pinned" value={pinnedCount.toLocaleString("en-US")} detail="Dread + Pitch" />
+        <StatCard label="Hermes" value={hermesCount.toLocaleString("en-US")} detail="from registry" />
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => (
@@ -455,19 +602,19 @@ function TorPanel({ state }: { state: SourceState<TorResponse> }) {
             <CardContent className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               {item.tier ? <Badge variant="outline">{item.tier}</Badge> : null}
               {typeof item.hits === "number" ? <Badge variant="outline">{item.hits} hits</Badge> : null}
-              {item.lastUseful ? <span className="self-center">son useful {item.lastUseful}</span> : null}
+              {item.lastUseful ? <span className="self-center">last useful {item.lastUseful}</span> : null}
             </CardContent>
             <CardFooter>
               <Button className="w-full" variant="outline" onClick={() => void openInTor(item)} disabled={opening !== null}>
                 <LockKeyhole data-icon="inline-start" aria-hidden="true" />
-                {opening === item.id ? "Tor Browser açılıyor…" : "Tor Browser’da aç"}
+                {opening === item.id ? "Opening in Tor Browser…" : "Open in Tor Browser"}
               </Button>
             </CardFooter>
           </Card>
         ))}
       </div>
       {message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
-      {items.length === 0 ? <Unavailable title="Tor kaynağı yok" description="Dread, Pitch veya Hermes registry içinde doğrulanmış onion kaydı yok." /> : null}
+      {items.length === 0 ? <Unavailable title="No Tor sources" description="There are no verified onion records from Dread, Pitch, or the Hermes registry." /> : null}
     </div>
   )
 }
@@ -475,6 +622,7 @@ function TorPanel({ state }: { state: SourceState<TorResponse> }) {
 function App() {
   const [helium, setHelium] = useState<SourceState<HistoryResponse>>({ data: null, loading: true, error: false })
   const [zen, setZen] = useState<SourceState<HistoryResponse>>({ data: null, loading: true, error: false })
+  const [analytics, setAnalytics] = useState<SourceState<AnalyticsResponse>>({ data: null, loading: true, error: false })
   const [shortcuts, setShortcuts] = useState<SourceState<ShortcutsResponse>>({ data: null, loading: true, error: false })
   const [hermes, setHermes] = useState<SourceState<HermesResponse>>({ data: null, loading: true, error: false })
   const [tor, setTor] = useState<SourceState<TorResponse>>({ data: null, loading: true, error: false })
@@ -484,6 +632,7 @@ function App() {
     const controller = new AbortController()
     setHelium((state) => ({ ...state, loading: true, error: false }))
     setZen((state) => ({ ...state, loading: true, error: false }))
+    setAnalytics((state) => ({ ...state, loading: true, error: false }))
     setShortcuts((state) => ({ ...state, loading: true, error: false }))
     setHermes((state) => ({ ...state, loading: true, error: false }))
     setTor((state) => ({ ...state, loading: true, error: false }))
@@ -495,6 +644,9 @@ function App() {
       loadJson<HistoryResponse>("/api/history/zen", controller.signal)
         .then((data) => setZen({ data, loading: false, error: false }))
         .catch(() => setZen({ data: emptyHistory, loading: false, error: true })),
+      loadJson<AnalyticsResponse>("/api/analytics", controller.signal)
+        .then((data) => setAnalytics({ data, loading: false, error: false }))
+        .catch(() => setAnalytics({ data: emptyAnalytics, loading: false, error: true })),
       loadJson<ShortcutsResponse>("/api/shortcuts", controller.signal)
         .then((data) => setShortcuts({ data, loading: false, error: false }))
         .catch(() => setShortcuts({ data: emptyShortcuts, loading: false, error: true })),
@@ -535,7 +687,7 @@ function App() {
               </div>
             </div>
             <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Browser akışı, Hermes araştırması ve Tor kaynakları tek yerel yüzeyde. Veriler gerçek profillerden okunur; boşsa boş görünür.
+              Browser activity, Hermes research, and Tor sources on one local surface. All data comes from real profiles and stays empty when unavailable.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -546,9 +698,9 @@ function App() {
                   loopback · 3210
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Vesper startpage yalnızca bu makinede dinlenir.</TooltipContent>
+              <TooltipContent>Vesper startpage listens on this machine only.</TooltipContent>
             </Tooltip>
-            <Button variant="ghost" size="icon-sm" onClick={refresh} aria-label="Verileri yenile">
+            <Button variant="ghost" size="icon-sm" onClick={refresh} aria-label="Refresh data">
               <RefreshCw data-icon="inline-start" aria-hidden="true" />
             </Button>
             {refreshedAt ? <time dateTime={refreshedAt.toISOString()}>{formatTime(refreshedAt.toISOString())}</time> : null}
@@ -556,31 +708,32 @@ function App() {
         </header>
 
         <ShortcutGrid state={shortcuts} />
+        <TorPanel state={tor} />
         <Separator />
 
         <Tabs defaultValue="recent" className="flex flex-col gap-5">
-          <TabsList variant="line" aria-label="Vesper bölümleri">
+          <TabsList variant="line" aria-label="Vesper sections">
             <TabsTrigger value="recent">
               <Clock3 data-icon="inline-start" aria-hidden="true" />
               recent
+            </TabsTrigger>
+            <TabsTrigger value="analysis">
+              <Activity data-icon="inline-start" aria-hidden="true" />
+              Analysis
             </TabsTrigger>
             <TabsTrigger value="hermes">
               <BrainCircuit data-icon="inline-start" aria-hidden="true" />
               Hermes
             </TabsTrigger>
-            <TabsTrigger value="tor">
-              <Radar data-icon="inline-start" aria-hidden="true" />
-              Tor
-            </TabsTrigger>
           </TabsList>
           <TabsContent value="recent">
             <HistoryPanel helium={helium} zen={zen} />
           </TabsContent>
+          <TabsContent value="analysis">
+            <AnalyticsPanel state={analytics} />
+          </TabsContent>
           <TabsContent value="hermes">
             <HermesPanel state={hermes} />
-          </TabsContent>
-          <TabsContent value="tor">
-            <TorPanel state={tor} />
           </TabsContent>
         </Tabs>
 

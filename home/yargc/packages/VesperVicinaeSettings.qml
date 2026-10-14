@@ -12,7 +12,7 @@ import qs.modules.nexus.common
 ColumnLayout {
     id: root
 
-    property var settings: ({ followTheme: true, followIcons: true, useGlass: true, closeOnFocusLoss: true, popToRootOnClose: true, layerShell: true, accent: "" })
+    property var settings: ({ followTheme: true, useGlass: true, closeOnFocusLoss: true, popToRootOnClose: true, layerShell: true, accent: "" })
     property string message: ""
     property bool messageOk: false
 
@@ -141,14 +141,6 @@ ColumnLayout {
         checked: root.settings.followTheme
         disabled: settingChange.running
         onToggled: root.setSetting("follow-theme", checked)
-    }
-
-    ToggleRow {
-        text: qsTr("Use Vesper adaptive icons")
-        subtext: qsTr("Use Vesper-Adaptive for Vicinae application results")
-        checked: root.settings.followIcons
-        disabled: settingChange.running
-        onToggled: root.setSetting("follow-icons", checked)
     }
 
     ToggleRow {
