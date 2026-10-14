@@ -5,7 +5,7 @@ Status: **partial**
 This document is the single product-boundary contract for Vesper AI.
 It contains both implemented behavior and target behavior. Current code must be checked before claiming a capability exists.
 
-`AI-ANALYTICS.md` owns analytics measurement semantics. `ADAPTIVE-ICONS.md` owns the adaptive icon pipeline. `SETTINGS.md` owns where AI controls appear in the wider Settings information architecture.
+`AI-ANALYTICS.md` owns analytics measurement semantics. `ADAPTIVE-ICONS.md` owns the optional sibling Liquid Glass integration boundary. `SETTINGS.md` owns where AI controls appear in the wider Settings information architecture.
 
 ## current implementation
 
@@ -19,7 +19,6 @@ Current Vesper AI already has:
 - canonical skills inventory
 - shared MCP inventory
 - Hermes integration
-- adaptive-icon AI controls and provider readiness
 
 Current implementation is still incomplete relative to the target contract below.
 In particular, detailed analytics/history, enforceable per-agent capability policy and the backend-neutral Agent Teams orchestration surface are not complete product surfaces yet.
@@ -344,37 +343,12 @@ The AI page may surface Hermes status and relevant controls without creating a s
 Recurring Hermes jobs are governed by `HERMES.md`.
 The target Settings presentation is defined in `SETTINGS.md`.
 
-## adaptive icons
+## Liquid Glass
 
-Adaptive icons use the Rust-owned automatic pipeline defined only in `ADAPTIVE-ICONS.md`.
+Vesper AI has no application-icon provider or queue controls. The optional sibling project owns its explicit conversion provider selection and never inherits Vesper provider credentials or consent state implicitly. `ADAPTIVE-ICONS.md` documents the thin Settings handoff.
 
-The old Apps -> Experimental manual request/review model is obsolete.
-
-Ownership split:
-
-```text
-AI
-  provider readiness
-  remote-analysis consent
-  generation/provider controls
-
-Appearance / Theme
-  icon appearance
-  material/rendering controls
-
-Apps
-  per-app retry
-  exclusion/original controls
-  diagnostics
-  per-app export
-```
-
-Remote semantic conversion requires explicit **Allow remote icon analysis** consent and a configured provider key.
-Consent is off by default.
-
-Palette, wallpaper, appearance and renderer changes are local recompiles and must not consume another AI request for an already-valid canonical package.
-
-Vesper intentionally has no bulk icon export UI or bulk export backend command.
+The sibling's own documented provider and consent rules apply. Vesper palette or
+appearance changes do not trigger icon conversion.
 
 ## implementation rule
 

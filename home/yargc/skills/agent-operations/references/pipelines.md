@@ -172,7 +172,7 @@ Use:
 
 A `never` list is often more auditable than an adjective-heavy style description because each violation can become a concrete QA finding.
 
-For batches, a contact sheet/grid is a high-value diagnostic for spotting drift that is hard to see one item at a time. It is a diagnostic aid, not a requirement for manual approval of every Vesper adaptive-icon conversion.
+For batches, a contact sheet/grid is a high-value diagnostic for spotting drift that is hard to see one item at a time. It is a diagnostic aid, not a requirement for manual approval of every sibling Liquid Glass conversion.
 
 Text inside generated images should be avoided or deterministically overlaid when reliable typography matters. If generated text is unavoidable, test the actual language and constrain known failure modes rather than assuming English behavior generalizes.
 

@@ -106,6 +106,127 @@ SELECT json_object(
 FROM stats;
 "#;
 
+// ponytail: keep aggregate payloads bounded; the UI only renders the top 8.
+const HELIUM_ANALYTICS_SQL: &str = r#"
+WITH raw AS (
+  SELECT
+    urls.url,
+    visits.visit_time,
+    visits.external_referrer_url AS referrer_url,
+    substr(urls.url, instr(urls.url, '://') + 3) AS authority_path,
+    substr(visits.external_referrer_url, instr(visits.external_referrer_url, '://') + 3) AS referrer_authority_path
+  FROM visits
+  JOIN urls ON urls.id = visits.url
+  WHERE (lower(urls.url) LIKE 'http://%' OR lower(urls.url) LIKE 'https://%')
+    AND lower(urls.url) NOT LIKE '%.onion%'
+), authorities AS (
+  SELECT
+    date((visit_time / 1000000) - 11644473600, 'unixepoch', 'localtime') AS day,
+    lower(substr(authority_path, 1, instr(authority_path || '/', '/') - 1)) AS host,
+    CASE
+      WHEN lower(referrer_url) LIKE 'http://%' OR lower(referrer_url) LIKE 'https://%'
+        THEN lower(substr(referrer_authority_path, 1, instr(referrer_authority_path || '/', '/') - 1))
+      ELSE ''
+    END AS referrer_host
+  FROM raw
+), clean AS (
+  SELECT
+    day,
+    CASE WHEN host LIKE 'www.%' THEN substr(host, 5) ELSE host END AS domain,
+    CASE WHEN referrer_host LIKE 'www.%' THEN substr(referrer_host, 5) ELSE referrer_host END AS referrer_domain
+  FROM authorities
+)
+SELECT json_object(
+  'stats', json_object(
+    'totalVisits', (SELECT count(*) FROM clean),
+    'referrerVisits', (SELECT count(*) FROM clean WHERE referrer_domain <> '' AND referrer_domain NOT LIKE '%.onion')
+  ),
+  'topSites', (SELECT json_group_array(json_object('domain', domain, 'visits', visits)) FROM (SELECT domain, count(*) AS visits FROM clean WHERE domain <> '' GROUP BY domain ORDER BY visits DESC, domain LIMIT 32)),
+  'activity', (SELECT json_group_array(json_object('date', day, 'visits', visits)) FROM (SELECT day, count(*) AS visits FROM clean GROUP BY day ORDER BY day DESC LIMIT 30)),
+  'referrers', (SELECT json_group_array(json_object('domain', domain, 'visits', visits)) FROM (SELECT referrer_domain AS domain, count(*) AS visits FROM clean WHERE referrer_domain <> '' AND referrer_domain NOT LIKE '%.onion' GROUP BY referrer_domain ORDER BY visits DESC, domain LIMIT 32))
+) AS result;
+"#;
+
+const ZEN_ANALYTICS_SQL: &str = r#"
+WITH raw AS (
+  SELECT
+    moz_places.url,
+    moz_historyvisits.visit_date,
+    referrer_places.url AS referrer_url,
+    substr(moz_places.url, instr(moz_places.url, '://') + 3) AS authority_path,
+    substr(referrer_places.url, instr(referrer_places.url, '://') + 3) AS referrer_authority_path
+  FROM moz_historyvisits
+  JOIN moz_places ON moz_places.id = moz_historyvisits.place_id
+  LEFT JOIN moz_historyvisits AS from_visit ON from_visit.id = moz_historyvisits.from_visit
+  LEFT JOIN moz_places AS referrer_places ON referrer_places.id = from_visit.place_id
+  WHERE (lower(moz_places.url) LIKE 'http://%' OR lower(moz_places.url) LIKE 'https://%')
+    AND lower(moz_places.url) NOT LIKE '%.onion%'
+), authorities AS (
+  SELECT
+    date(visit_date / 1000000, 'unixepoch', 'localtime') AS day,
+    lower(substr(authority_path, 1, instr(authority_path || '/', '/') - 1)) AS host,
+    CASE
+      WHEN lower(referrer_url) LIKE 'http://%' OR lower(referrer_url) LIKE 'https://%'
+        THEN lower(substr(referrer_authority_path, 1, instr(referrer_authority_path || '/', '/') - 1))
+      ELSE ''
+    END AS referrer_host
+  FROM raw
+), clean AS (
+  SELECT
+    day,
+    CASE WHEN host LIKE 'www.%' THEN substr(host, 5) ELSE host END AS domain,
+    CASE WHEN referrer_host LIKE 'www.%' THEN substr(referrer_host, 5) ELSE referrer_host END AS referrer_domain
+  FROM authorities
+)
+SELECT json_object(
+  'stats', json_object(
+    'totalVisits', (SELECT count(*) FROM clean),
+    'referrerVisits', (SELECT count(*) FROM clean WHERE referrer_domain <> '' AND referrer_domain NOT LIKE '%.onion')
+  ),
+  'topSites', (SELECT json_group_array(json_object('domain', domain, 'visits', visits)) FROM (SELECT domain, count(*) AS visits FROM clean WHERE domain <> '' GROUP BY domain ORDER BY visits DESC, domain LIMIT 32)),
+  'activity', (SELECT json_group_array(json_object('date', day, 'visits', visits)) FROM (SELECT day, count(*) AS visits FROM clean GROUP BY day ORDER BY day DESC LIMIT 30)),
+  'referrers', (SELECT json_group_array(json_object('domain', domain, 'visits', visits)) FROM (SELECT referrer_domain AS domain, count(*) AS visits FROM clean WHERE referrer_domain <> '' AND referrer_domain NOT LIKE '%.onion' GROUP BY referrer_domain ORDER BY visits DESC, domain LIMIT 32))
+) AS result;
+"#;
+
+const ANALYTICS_MERGE_JQ: &str = r#"
+map(select(.available == true)) as $sources
+| if ($sources | length) == 0 then
+    {available: false, reason: "missing", stats: {totalVisits: 0, referrerVisits: 0, activeDays: 0, browserCount: 0}, topSites: [], activity: [], referrers: [], sources: []}
+  else
+    ([$sources[] | .topSites[]?]
+      | group_by(.domain)
+      | map({domain: .[0].domain, visits: (map(.visits) | add)})
+      | sort_by(.visits)
+      | reverse
+      | .[:10]) as $topSites
+    | ([$sources[] | .activity[]?]
+      | group_by(.date)
+      | map({date: .[0].date, visits: (map(.visits) | add)})
+      | sort_by(.date)
+      | .[-14:]) as $activity
+    | ([$sources[] | .referrers[]?]
+      | group_by(.domain)
+      | map({domain: .[0].domain, visits: (map(.visits) | add)})
+      | sort_by(.visits)
+      | reverse
+      | .[:10]) as $referrers
+    | {
+        available: true,
+        stats: {
+          totalVisits: ([$sources[].stats.totalVisits] | add),
+          referrerVisits: ([$sources[].stats.referrerVisits] | add),
+          activeDays: ($activity | length),
+          browserCount: ($sources | length)
+        },
+        topSites: $topSites,
+        activity: $activity,
+        referrers: $referrers,
+        sources: [$sources[] | {browser, visits: .stats.totalVisits}]
+      }
+  end
+"#;
+
 const MERGE_HISTORY_JQ: &str = r#"
 reduce .[] as $item
   ({available: false, stats: {totalVisits: 0, uniqueUrls: 0, todayVisits: 0}, items: []};
@@ -123,9 +244,9 @@ const SHORTCUTS_JQ: &str = r#"
 | map(select((.url | test("^https?://"; "i")) and ((.url | test("\\.onion"; "i")) | not)))
 | map({
     title: ((.title // .url) | tostring),
-    url: .url,
-    domain: (.url | sub("^https?://"; "") | split("/")[0] | split(":")[0])
+    url: (if ((.title // "") | tostring | ascii_downcase) == "github" then "https://github.com/" else .url end)
   })
+| map(. + {domain: (.url | sub("^https?://"; "") | split("/")[0] | split(":")[0])})
 "#;
 
 const HERMES_JQ: &str = r#"
@@ -268,6 +389,8 @@ fn parse_args() -> Config {
             "--briefings-index" => config.briefings_index = PathBuf::from(value()),
             "--source-registry" => config.source_registry = PathBuf::from(value()),
             "--tor-browser" => config.tor_browser = PathBuf::from(value()),
+            // Keep one older activated unit compatible until Home Manager reapplies its ExecStart.
+            "--tor-browser-detach" => {}
             other => panic!("unknown argument {other}"),
         }
     }
@@ -344,7 +467,10 @@ fn route(request: Request, config: &Config) -> Result<Vec<u8>, (u16, String)> {
         return Err((413, error_json("request body is not accepted")));
     }
 
-    let path = request.target.split('?').next().unwrap_or_default();
+    let (path, query) = request
+        .target
+        .split_once('?')
+        .unwrap_or((request.target.as_str(), ""));
     if request.method == "POST" {
         if request.headers.get("origin").map(String::as_str) != Some(LOOPBACK_ORIGIN) {
             return Err((403, error_json("loopback origin required")));
@@ -357,6 +483,11 @@ fn route(request: Request, config: &Config) -> Result<Vec<u8>, (u16, String)> {
     }
     if request.method != "GET" {
         return Err((405, error_json("method not allowed")));
+    }
+
+    if path == "/api/favicon" {
+        let url = query_parameter(query, "url").ok_or((400, error_json("favicon url required")))?;
+        return favicon_response(&url, config);
     }
 
     match path {
@@ -377,6 +508,16 @@ fn route(request: Request, config: &Config) -> Result<Vec<u8>, (u16, String)> {
                 .map(|path| (path, "Zen", ZEN_SQL))
                 .collect::<Vec<_>>();
             Ok(json_response(history_json(&paths)))
+        }
+        "/api/analytics" => {
+            let mut paths = vec![(&config.helium_history, "Helium", HELIUM_ANALYTICS_SQL)];
+            paths.extend(
+                config
+                    .zen_histories
+                    .iter()
+                    .map(|path| (path, "Zen", ZEN_ANALYTICS_SQL)),
+            );
+            Ok(json_response(analytics_json(&paths)))
         }
         "/api/shortcuts" => Ok(json_response(shortcuts_json(config))),
         "/api/hermes" => Ok(json_response(hermes_json(config))),
@@ -450,6 +591,47 @@ fn history_for_db(path: &Path, browser: &str, sql: &str) -> Option<String> {
     )
 }
 
+fn analytics_json(paths: &[(&PathBuf, &str, &str)]) -> String {
+    let mut documents = Vec::new();
+    let mut existing_database = false;
+    for (path, browser, sql) in paths {
+        existing_database |= path.is_file();
+        if let Some(document) = analytics_for_db(path, browser, sql) {
+            documents.push(document);
+        }
+    }
+    if documents.is_empty() {
+        return unavailable_analytics_json(if existing_database {
+            "unreadable"
+        } else {
+            "missing"
+        });
+    }
+    let input = format!("[{}]", documents.join(","));
+    run_jq(ANALYTICS_MERGE_JQ, &input, &[])
+        .unwrap_or_else(|| unavailable_analytics_json("invalid"))
+}
+
+fn analytics_for_db(path: &Path, browser: &str, sql: &str) -> Option<String> {
+    if !path.is_file() {
+        return None;
+    }
+    let database = format!("file:{}?immutable=1", path.display());
+    let output = Command::new("sqlite3")
+        .args(["-readonly", "-json", "-batch", &database, sql])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let sqlite_json = String::from_utf8(output.stdout).ok()?;
+    run_jq(
+        r#".[0].result | fromjson | . + {available: true, browser: $browser}"#,
+        &sqlite_json,
+        &[("browser", browser)],
+    )
+}
+
 fn hermes_json(config: &Config) -> String {
     let (index_present, index_valid, index) = read_json(&config.briefings_index, "[]");
     let (registry_present, registry_valid, registry) =
@@ -476,6 +658,96 @@ fn shortcuts_json(config: &Config) -> String {
         return unavailable_shortcuts_json("invalid");
     };
     format!(r#"{{"available":true,"items":{items}}}"#)
+}
+
+fn favicon_response(url: &str, config: &Config) -> Result<Vec<u8>, (u16, String)> {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return Err((404, error_json("favicon not found")));
+    };
+    if (scheme != "http" && scheme != "https") || url.contains('\0') {
+        return Err((404, error_json("favicon not found")));
+    }
+    let authority = rest.split(['/', '?']).next().unwrap_or_default();
+    if authority.is_empty() {
+        return Err((404, error_json("favicon not found")));
+    }
+    let Some(history_parent) = config.helium_history.parent() else {
+        return Err((404, error_json("favicon not found")));
+    };
+    let database_path = history_parent.join("Favicons");
+    if !database_path.is_file() {
+        return Err((404, error_json("favicon not found")));
+    }
+
+    let origin = format!("{scheme}://{authority}/");
+    let prefix = format!("{origin}%");
+    let sql = format!(
+        "SELECT hex(favicon_bitmaps.image_data) || '|' || lower(favicons.url) \
+         FROM icon_mapping \
+         JOIN favicons ON favicons.id = icon_mapping.icon_id \
+         JOIN favicon_bitmaps ON favicon_bitmaps.icon_id = favicons.id \
+         WHERE icon_mapping.page_url = {} OR icon_mapping.page_url = {} OR icon_mapping.page_url LIKE {} \
+         ORDER BY favicon_bitmaps.width DESC, favicon_bitmaps.height DESC \
+         LIMIT 1;",
+        sql_quote(url),
+        sql_quote(&origin),
+        sql_quote(&prefix)
+    );
+    let database = format!("file:{}?immutable=1", database_path.display());
+    let output = Command::new("sqlite3")
+        .args(["-readonly", "-noheader", "-batch", &database, &sql])
+        .output()
+        .map_err(|_| (404, error_json("favicon not found")))?;
+    if !output.status.success() {
+        return Err((404, error_json("favicon not found")));
+    }
+    let line = String::from_utf8(output.stdout)
+        .ok()
+        .and_then(|value| value.lines().next().map(str::to_owned))
+        .ok_or((404, error_json("favicon not found")))?;
+    let Some((hex_data, icon_url)) = line.split_once('|') else {
+        return Err((404, error_json("favicon not found")));
+    };
+    let data = decode_hex(hex_data).ok_or((404, error_json("favicon not found")))?;
+    if data.is_empty() {
+        return Err((404, error_json("favicon not found")));
+    }
+    Ok(response(200, favicon_content_type(&data, icon_url), &data))
+}
+
+fn query_parameter(query: &str, name: &str) -> Option<String> {
+    query.split('&').find_map(|part| {
+        let (key, value) = part.split_once('=')?;
+        (percent_decode(key).as_deref() == Some(name)).then(|| percent_decode(value))?
+    })
+}
+
+fn sql_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn decode_hex(value: &str) -> Option<Vec<u8>> {
+    if value.len() % 2 != 0 {
+        return None;
+    }
+    value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| Some((hex(pair[0])? << 4) | hex(pair[1])?))
+        .collect()
+}
+
+fn favicon_content_type(data: &[u8], icon_url: &str) -> &'static str {
+    let icon_url = icon_url.to_ascii_lowercase();
+    if icon_url.ends_with(".svg") || data.starts_with(b"<svg") || data.starts_with(b"<?xml") {
+        "image/svg+xml"
+    } else if data.starts_with(&[0x89, b'P', b'N', b'G']) {
+        "image/png"
+    } else if data.starts_with(b"GIF8") {
+        "image/gif"
+    } else {
+        "image/x-icon"
+    }
 }
 
 fn tor_json(config: &Config) -> String {
@@ -624,6 +896,12 @@ fn unavailable_history_json(reason: &str) -> String {
     )
 }
 
+fn unavailable_analytics_json(reason: &str) -> String {
+    format!(
+        r#"{{"available":false,"reason":"{reason}","stats":{{"totalVisits":0,"referrerVisits":0,"activeDays":0,"browserCount":0}},"topSites":[],"activity":[],"referrers":[],"sources":[]}}"#
+    )
+}
+
 fn unavailable_shortcuts_json(reason: &str) -> String {
     format!(r#"{{"available":false,"reason":"{reason}","items":[]}}"#)
 }
@@ -686,8 +964,8 @@ mod tests {
     use std::fs;
 
     use super::{
-        content_type, resolve_registry_url, run_jq, valid_onion_url, Config, DREAD_URL, HERMES_JQ,
-        PITCH_URL, SHORTCUTS_JQ, TOR_JQ,
+        content_type, resolve_registry_url, run_jq, valid_onion_url, ANALYTICS_MERGE_JQ, Config,
+        DREAD_URL, HERMES_JQ, PITCH_URL, SHORTCUTS_JQ, TOR_JQ,
     };
 
     #[test]
@@ -732,9 +1010,23 @@ mod tests {
         }"#;
         let result = run_jq(SHORTCUTS_JQ, input, &[]).expect("shortcut fixture should normalize");
         assert!(result.contains(r#""title":"GitHub""#));
+        assert!(result.contains(r#""url":"https://github.com/""#));
         assert!(result.contains(r#""domain":"github.com""#));
         assert!(!result.contains("onion"));
         assert!(!result.contains("file:///"));
+    }
+
+    #[test]
+    fn merges_local_analytics_without_remote_data() {
+        let input = r#"[
+          {"available":true,"browser":"Helium","stats":{"totalVisits":4,"referrerVisits":2},"topSites":[{"domain":"x.com","visits":4}],"activity":[{"date":"2026-08-22","visits":4}],"referrers":[{"domain":"google.com","visits":2}]},
+          {"available":true,"browser":"Zen","stats":{"totalVisits":1,"referrerVisits":1},"topSites":[{"domain":"x.com","visits":1}],"activity":[{"date":"2026-08-22","visits":1}],"referrers":[{"domain":"google.com","visits":1}]}
+        ]"#;
+        let result = run_jq(ANALYTICS_MERGE_JQ, input, &[]).expect("analytics fixture should merge");
+        assert!(result.contains(r#""totalVisits":5"#));
+        assert!(result.contains(r#""domain":"x.com","visits":5"#));
+        assert!(result.contains(r#""domain":"google.com","visits":3"#));
+        assert!(result.contains(r#""activeDays":1"#));
     }
 
     #[test]

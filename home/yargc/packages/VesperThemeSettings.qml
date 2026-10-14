@@ -6,7 +6,6 @@ import Quickshell
 import Quickshell.Io
 import Caelestia.Config
 import qs.components.controls
-import qs.services
 import qs.modules.nexus.common
 
 ColumnLayout {
@@ -16,8 +15,8 @@ ColumnLayout {
     spacing: Tokens.spacing.extraSmall
 
     property string currentVariant: "tonalspot"
-    property var icons: ({ enabled: false, mode: "automatic", material: "standard", followPalette: true, theme: "Vesper-Adaptive", active: 0, canonical: 0, discovered: 0, schemeMode: "dark", accent: "", gridRevision: "" })
-    property string iconMessage: ""
+    property var liquidGlass: ({ managed: 0, current: 0, stale: 0, missing: 0 })
+    property string liquidGlassMessage: ""
 
     function setScheme(name: string, flavour: string): void {
         Quickshell.execDetached(["caelestia", "scheme", "set", "--notify", "-n", name, "-f", flavour]);
@@ -27,197 +26,55 @@ ColumnLayout {
     function setVariant(variant: string): void {
         Quickshell.execDetached(["caelestia", "scheme", "set", "--notify", "-v", variant]);
         currentVariant = variant;
-        refreshTimer.restart();
     }
 
     function reapplyToolkitThemes(): void {
         Quickshell.execDetached(["caelestia", "scheme", "set", "--notify", "-m", Colours.light ? "light" : "dark"]);
-        refreshTimer.restart();
     }
 
-    function refreshIcons(): void {
-        if (!iconStatus.running)
-            iconStatus.running = true;
+    function refreshLiquidGlass(): void {
+        if (!liquidGlassStatus.running)
+            liquidGlassStatus.running = true;
     }
 
-    function runIcon(args): void {
-        if (iconChange.running)
+    function applyLiquidGlass(): void {
+        if (liquidGlassApply.running)
             return;
-        root.iconMessage = "";
-        iconChange.command = ["@vesperControl@", "icon"].concat(args);
-        iconChange.running = true;
+        liquidGlassMessage = "";
+        liquidGlassApply.command = ["@vesperControl@", "liquid-glass", "apply", "--managed", "--appearance", Colours.light ? "tinted-light" : "tinted-dark", "--json"];
+        liquidGlassApply.running = true;
     }
 
-    Component.onCompleted: refreshIcons()
+    Component.onCompleted: refreshLiquidGlass()
 
     property list<MenuItem> schemeItems: [
-        MenuItem {
-            objectName: "caelestia/default"
-            text: qsTr("Caelestia")
-            icon: "palette"
-            onClicked: root.setScheme("caelestia", "default")
-        },
-        MenuItem {
-            objectName: "catppuccin/mocha"
-            text: qsTr("Catppuccin Mocha")
-            icon: "palette"
-            onClicked: root.setScheme("catppuccin", "mocha")
-        },
-        MenuItem {
-            objectName: "catppuccin/frappe"
-            text: qsTr("Catppuccin Frappe")
-            icon: "palette"
-            onClicked: root.setScheme("catppuccin", "frappe")
-        },
-        MenuItem {
-            objectName: "dracula/medium"
-            text: qsTr("Dracula")
-            icon: "palette"
-            onClicked: root.setScheme("dracula", "medium")
-        },
-        MenuItem {
-            objectName: "everforest/medium"
-            text: qsTr("Everforest")
-            icon: "palette"
-            onClicked: root.setScheme("everforest", "medium")
-        },
-        MenuItem {
-            objectName: "gruvbox/medium"
-            text: qsTr("Gruvbox")
-            icon: "palette"
-            onClicked: root.setScheme("gruvbox", "medium")
-        },
-        MenuItem {
-            objectName: "nord/medium"
-            text: qsTr("Nord")
-            icon: "palette"
-            onClicked: root.setScheme("nord", "medium")
-        },
-        MenuItem {
-            objectName: "rosepine/main"
-            text: qsTr("Rose Pine")
-            icon: "palette"
-            onClicked: root.setScheme("rosepine", "main")
-        },
-        MenuItem {
-            objectName: "solarized/medium"
-            text: qsTr("Solarized")
-            icon: "palette"
-            onClicked: root.setScheme("solarized", "medium")
-        },
-        MenuItem {
-            objectName: "tokyonight/medium"
-            text: qsTr("Tokyo Night")
-            icon: "palette"
-            onClicked: root.setScheme("tokyonight", "medium")
-        },
-        MenuItem {
-            objectName: "dynamic/default"
-            text: qsTr("Dynamic wallpaper")
-            icon: "auto_awesome"
-            onClicked: root.setScheme("dynamic", "default")
-        }
+        MenuItem { objectName: "caelestia/default"; text: qsTr("Caelestia"); icon: "palette"; onClicked: root.setScheme("caelestia", "default") },
+        MenuItem { objectName: "catppuccin/mocha"; text: qsTr("Catppuccin Mocha"); icon: "palette"; onClicked: root.setScheme("catppuccin", "mocha") },
+        MenuItem { objectName: "catppuccin/frappe"; text: qsTr("Catppuccin Frappe"); icon: "palette"; onClicked: root.setScheme("catppuccin", "frappe") },
+        MenuItem { objectName: "dracula/medium"; text: qsTr("Dracula"); icon: "palette"; onClicked: root.setScheme("dracula", "medium") },
+        MenuItem { objectName: "everforest/medium"; text: qsTr("Everforest"); icon: "palette"; onClicked: root.setScheme("everforest", "medium") },
+        MenuItem { objectName: "gruvbox/medium"; text: qsTr("Gruvbox"); icon: "palette"; onClicked: root.setScheme("gruvbox", "medium") },
+        MenuItem { objectName: "nord/medium"; text: qsTr("Nord"); icon: "palette"; onClicked: root.setScheme("nord", "medium") },
+        MenuItem { objectName: "rosepine/main"; text: qsTr("Rose Pine"); icon: "palette"; onClicked: root.setScheme("rosepine", "main") },
+        MenuItem { objectName: "solarized/medium"; text: qsTr("Solarized"); icon: "palette"; onClicked: root.setScheme("solarized", "medium") },
+        MenuItem { objectName: "tokyonight/medium"; text: qsTr("Tokyo Night"); icon: "palette"; onClicked: root.setScheme("tokyonight", "medium") },
+        MenuItem { objectName: "dynamic/default"; text: qsTr("Dynamic wallpaper"); icon: "auto_awesome"; onClicked: root.setScheme("dynamic", "default") }
     ]
 
     property list<MenuItem> variantItems: [
-        MenuItem {
-            objectName: "tonalspot"
-            text: qsTr("Tonal spot")
-            onClicked: root.setVariant("tonalspot")
-        },
-        MenuItem {
-            objectName: "vibrant"
-            text: qsTr("Vibrant")
-            onClicked: root.setVariant("vibrant")
-        },
-        MenuItem {
-            objectName: "expressive"
-            text: qsTr("Expressive")
-            onClicked: root.setVariant("expressive")
-        },
-        MenuItem {
-            objectName: "fidelity"
-            text: qsTr("Fidelity")
-            onClicked: root.setVariant("fidelity")
-        },
-        MenuItem {
-            objectName: "fruitsalad"
-            text: qsTr("Fruit salad")
-            onClicked: root.setVariant("fruitsalad")
-        },
-        MenuItem {
-            objectName: "monochrome"
-            text: qsTr("Monochrome")
-            onClicked: root.setVariant("monochrome")
-        },
-        MenuItem {
-            objectName: "neutral"
-            text: qsTr("Neutral")
-            onClicked: root.setVariant("neutral")
-        },
-        MenuItem {
-            objectName: "rainbow"
-            text: qsTr("Rainbow")
-            onClicked: root.setVariant("rainbow")
-        },
-        MenuItem {
-            objectName: "content"
-            text: qsTr("Content")
-            onClicked: root.setVariant("content")
-        }
-    ]
-
-    property list<MenuItem> iconModeItems: [
-        MenuItem {
-            objectName: "automatic"
-            text: qsTr("Automatic")
-            icon: "auto_mode"
-            onClicked: root.runIcon(["mode", "automatic"])
-        },
-        MenuItem {
-            objectName: "default"
-            text: qsTr("Default")
-            icon: "light_mode"
-            onClicked: root.runIcon(["mode", "default"])
-        },
-        MenuItem {
-            objectName: "dark"
-            text: qsTr("Dark")
-            icon: "dark_mode"
-            onClicked: root.runIcon(["mode", "dark"])
-        },
-        MenuItem {
-            objectName: "clear"
-            text: qsTr("Clear")
-            icon: "blur_on"
-            onClicked: root.runIcon(["mode", "clear"])
-        },
-        MenuItem {
-            objectName: "tinted"
-            text: qsTr("Tinted")
-            icon: "palette"
-            onClicked: root.runIcon(["mode", "tinted"])
-        }
-    ]
-
-    property list<MenuItem> iconMaterialItems: [
-        MenuItem {
-            objectName: "standard"
-            text: qsTr("Standard")
-            icon: "layers"
-            onClicked: root.runIcon(["material", "standard"])
-        },
-        MenuItem {
-            objectName: "glass"
-            text: qsTr("Glass")
-            icon: "auto_awesome"
-            onClicked: root.runIcon(["material", "glass"])
-        }
+        MenuItem { objectName: "tonalspot"; text: qsTr("Tonal spot"); onClicked: root.setVariant("tonalspot") },
+        MenuItem { objectName: "vibrant"; text: qsTr("Vibrant"); onClicked: root.setVariant("vibrant") },
+        MenuItem { objectName: "expressive"; text: qsTr("Expressive"); onClicked: root.setVariant("expressive") },
+        MenuItem { objectName: "fidelity"; text: qsTr("Fidelity"); onClicked: root.setVariant("fidelity") },
+        MenuItem { objectName: "fruitsalad"; text: qsTr("Fruit salad"); onClicked: root.setVariant("fruitsalad") },
+        MenuItem { objectName: "monochrome"; text: qsTr("Monochrome"); onClicked: root.setVariant("monochrome") },
+        MenuItem { objectName: "neutral"; text: qsTr("Neutral"); onClicked: root.setVariant("neutral") },
+        MenuItem { objectName: "rainbow"; text: qsTr("Rainbow"); onClicked: root.setVariant("rainbow") },
+        MenuItem { objectName: "content"; text: qsTr("Content"); onClicked: root.setVariant("content") }
     ]
 
     Process {
         id: getVariant
-
         running: true
         command: ["caelestia", "scheme", "get", "-v"]
         stdout: StdioCollector {
@@ -230,50 +87,49 @@ ColumnLayout {
     }
 
     Process {
-        id: iconStatus
-        command: ["@vesperControl@", "icon", "status"]
+        id: liquidGlassStatus
+        command: ["@vesperControl@", "liquid-glass", "status", "--json"]
+        stderr: StdioCollector { id: liquidGlassStatusError }
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    root.icons = JSON.parse(text);
+                    const rows = JSON.parse(text).data || [];
+                    root.liquidGlass = {
+                        managed: rows.filter(row => row.managed).length,
+                        current: rows.filter(row => row.cache === "current").length,
+                        stale: rows.filter(row => row.cache === "stale").length,
+                        missing: rows.filter(row => row.cache === "missing").length
+                    };
+                    root.liquidGlassMessage = "";
                 } catch (e) {
-                    root.iconMessage = qsTr("Could not read adaptive icon theme status");
+                    root.liquidGlassMessage = qsTr("Liquid Glass is not installed or returned invalid data");
                 }
             }
         }
     }
 
     Process {
-        id: iconChange
-        stderr: StdioCollector { id: iconError }
+        id: liquidGlassApply
+        stderr: StdioCollector { id: liquidGlassApplyError }
         onExited: (code, status) => {
-            root.iconMessage = code === 0 ? "" : iconError.text.trim();
-            root.refreshIcons();
+            root.liquidGlassMessage = code === 0
+                ? qsTr("Applied managed icons from local caches without AI")
+                : liquidGlassApplyError.text.trim() || qsTr("Could not apply Liquid Glass icons");
+            root.refreshLiquidGlass();
         }
     }
 
     Timer {
         id: refreshTimer
-
         interval: 250
         repeat: false
         onTriggered: {
             getVariant.running = true;
-            root.refreshIcons();
+            root.refreshLiquidGlass();
         }
     }
 
-    Timer {
-        interval: 30000
-        repeat: true
-        running: root.visible
-        onTriggered: root.refreshIcons()
-    }
-
-    SectionHeader {
-        first: true
-        text: qsTr("Caelestia")
-    }
+    SectionHeader { first: true; text: qsTr("Caelestia") }
 
     SelectRow {
         label: qsTr("Colour scheme")
@@ -308,78 +164,42 @@ ColumnLayout {
         onToggled: Colours.setMode(checked ? "dark" : "light")
     }
 
-    SectionHeader {
-        text: qsTr("Application icons")
-    }
-
-    SelectRow {
-        label: qsTr("Appearance")
-        subtext: qsTr("Automatic follows the current light/dark scheme; changes recompile locally without AI")
-        fallbackIcon: "palette"
-        fallbackText: root.icons.mode || "automatic"
-        menuItems: root.iconModeItems
-        active: root.iconModeItems.find(item => item.objectName === root.icons.mode) ?? null
-    }
-
-    SelectRow {
-        label: qsTr("Material")
-        subtext: qsTr("Glass changes rendering only and never re-canonicalizes the icon")
-        fallbackIcon: "layers"
-        fallbackText: root.icons.material || "standard"
-        menuItems: root.iconMaterialItems
-        active: root.iconMaterialItems.find(item => item.objectName === (root.icons.material || "standard")) ?? null
-    }
-
-    ToggleRow {
-        text: qsTr("Follow Caelestia palette")
-        subtext: qsTr("Tinted and Glass consume the current generated accent")
-        checked: root.icons.followPalette ?? true
-        disabled: iconChange.running
-        onToggled: root.runIcon(["follow-palette", checked ? "on" : "off"])
-    }
+    SectionHeader { text: qsTr("Liquid Glass icons") }
 
     InfoRow {
         icon: "apps"
-        label: qsTr("Generated icon theme")
-        subtext: root.icons.enabled ? qsTr("%1 canonical · %2 active").arg(root.icons.canonical || 0).arg(root.icons.active || 0) : qsTr("disabled · inherited Papirus fallback stays active")
-        value: root.icons.theme || "Vesper-Adaptive"
+        label: qsTr("Local icon cache")
+        subtext: qsTr("%1 managed · %2 current · %3 stale").arg(root.liquidGlass.managed).arg(root.liquidGlass.current).arg(root.liquidGlass.stale)
+        value: qsTr("%1 missing").arg(root.liquidGlass.missing)
     }
 
-    InfoRow {
-        icon: "grid_view"
-        label: qsTr("Icon grid")
-        subtext: qsTr("versioned Vesper optical calibration")
-        value: root.icons.gridRevision || qsTr("pending")
-    }
-
-    InfoRow {
-        icon: "colors"
-        label: qsTr("Compiler palette")
-        subtext: qsTr("scheme mode %1").arg(root.icons.schemeMode || (Colours.light ? "light" : "dark"))
-        value: root.icons.accent || qsTr("pending")
+    RowButton {
+        icon: "auto_awesome"
+        text: qsTr("Open Liquid Glass Icons")
+        subtext: qsTr("Convert selected application icons with the sibling app")
+        trailingIcon: "open_in_new"
+        onClicked: Quickshell.execDetached(["liquid-glass-icon-gui"])
     }
 
     RowButton {
         icon: "sync"
-        text: qsTr("Rebuild application icon theme")
-        subtext: qsTr("rescan sources and atomically replace the generated freedesktop theme")
+        text: qsTr("Apply managed icons")
+        subtext: qsTr("Re-render current local caches for this appearance without AI")
         trailingIcon: "refresh"
-        disabled: iconChange.running
-        onClicked: root.runIcon(["reconcile"])
+        disabled: liquidGlassApply.running || root.liquidGlass.managed === 0
+        onClicked: root.applyLiquidGlass()
     }
 
     StyledText {
         Layout.fillWidth: true
-        visible: root.iconMessage
-        text: root.iconMessage
-        color: Colours.palette.m3error
+        visible: root.liquidGlassMessage
+        text: root.liquidGlassMessage
+        color: Colours.palette.m3onSurfaceVariant
         font: Tokens.font.body.small
         wrapMode: Text.WordWrap
     }
 
-    SectionHeader {
-        text: qsTr("GTK")
-    }
+    SectionHeader { text: qsTr("GTK") }
 
     InfoRow {
         icon: "desktop_windows"
@@ -391,8 +211,8 @@ ColumnLayout {
     InfoRow {
         icon: "image"
         label: qsTr("Icon theme")
-        subtext: qsTr("Vesper application overrides with Papirus inheritance for everything else")
-        value: root.icons.theme || "Vesper-Adaptive"
+        subtext: qsTr("Papirus with standard hicolor user overrides")
+        value: qsTr("Papirus")
     }
 
     RowButton {
@@ -403,9 +223,7 @@ ColumnLayout {
         onClicked: root.reapplyToolkitThemes()
     }
 
-    SectionHeader {
-        text: qsTr("Qt")
-    }
+    SectionHeader { text: qsTr("Qt") }
 
     InfoRow {
         icon: "widgets"

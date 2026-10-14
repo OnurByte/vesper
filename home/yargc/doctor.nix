@@ -150,7 +150,7 @@ let
           record warn caelestia_config "Caelestia runtime configuration is missing"
         fi
 
-        for desktop_unit in vesper-adaptive-icons.service vesper-cliphist-text.service vesper-cliphist-image.service; do
+        for desktop_unit in vesper-cliphist-text.service vesper-cliphist-image.service; do
           desktop_key="desktop_''${desktop_unit%.service}"
           if systemctl --user is-active --quiet "$desktop_unit" 2>/dev/null; then
             record ok "$desktop_key" "$desktop_unit is active"
@@ -163,7 +163,6 @@ let
         record info portals "Desktop portal check skipped outside a graphical session"
         record info vicinae "Vicinae check skipped outside a graphical session"
         record info caelestia_config "Caelestia config check skipped outside a graphical session"
-        record info desktop_vesper-adaptive-icons "Adaptive icon service check skipped outside a graphical session"
         record info desktop_vesper-cliphist-text "Text clipboard service check skipped outside a graphical session"
         record info desktop_vesper-cliphist-image "Image clipboard service check skipped outside a graphical session"
       fi

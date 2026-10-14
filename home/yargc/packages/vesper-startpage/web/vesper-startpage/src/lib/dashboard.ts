@@ -33,6 +33,23 @@ export type HistoryResponse = {
   items: HistoryItem[]
 }
 
+export type AnalyticsMetric = { domain: string; visits: number }
+
+export type AnalyticsResponse = {
+  available: boolean
+  reason?: "missing" | "unreadable" | "invalid"
+  stats: {
+    totalVisits: number
+    referrerVisits: number
+    activeDays: number
+    browserCount: number
+  }
+  topSites: AnalyticsMetric[]
+  activity: { date: string; visits: number }[]
+  referrers: AnalyticsMetric[]
+  sources: { browser: BrowserName; visits: number }[]
+}
+
 export type Briefing = {
   id: string
   lane: string
@@ -111,7 +128,7 @@ export function formatTime(value: string): string {
   if (Number.isNaN(date.getTime())) {
     return "--:--"
   }
-  return new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" }).format(date)
+  return new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit" }).format(date)
 }
 
 export function normalizeHistoryItem(raw: Omit<HistoryItem, "domain">): HistoryItem {

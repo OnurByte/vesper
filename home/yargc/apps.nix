@@ -1,56 +1,44 @@
 {
-  config,
   inputs,
-  lib,
   pkgs,
   ...
 }:
 let
   sessionDesktop = pkgs.callPackage ./packages/session-desktop.nix { };
   vesperStartpage = inputs.self.packages.${pkgs.system}.vesper-startpage;
+  staticStartpage = "file://${vesperStartpage}/share/vesper-startpage/index.html";
   heliumPackage = inputs.helium.packages.${pkgs.system}.default;
   torBrowserPackage = pkgs.tor-browser;
   heliumStartpage = pkgs.writeShellApplication {
     name = "helium";
     text = ''
       if [ "$#" -eq 0 ]; then
-        exec ${heliumPackage}/bin/helium "http://127.0.0.1:3210/"
+        set -- "${staticStartpage}"
       fi
-      exec ${heliumPackage}/bin/helium "$@"
+      exec ${heliumPackage}/bin/helium \
+        "--homepage=${staticStartpage}" \
+        "--custom-ntp=${staticStartpage}" \
+        "$@"
     '';
   };
   torBrowserStartpage = pkgs.writeShellApplication {
     name = "tor-browser";
     text = ''
       if [ "$#" -eq 0 ]; then
-        exec ${torBrowserPackage}/bin/tor-browser "http://127.0.0.1:3210/"
+        exec ${torBrowserPackage}/bin/tor-browser "${staticStartpage}"
       fi
       exec ${torBrowserPackage}/bin/tor-browser "$@"
     '';
   };
-  startpageArgs = [
-    "--web-root"
-    "${vesperStartpage}/share/vesper-startpage"
-    "--helium-history"
-    "${config.home.homeDirectory}/.config/net.imput.helium/Default/History"
-    "--helium-preferences"
-    "${config.home.homeDirectory}/.config/net.imput.helium/Default/Preferences"
-    "--zen-history"
-    "${config.xdg.configHome}/zen/default/places.sqlite"
-    "--zen-history"
-    "${config.xdg.configHome}/zen/default-release/places.sqlite"
-    "--zen-history"
-    "${config.home.homeDirectory}/.var/app/app.zen_browser.zen/.zen/wax43dc1.Default (release)/places.sqlite"
-    "--briefings-index"
-    "${config.home.homeDirectory}/.local/share/vesper/briefings/index.json"
-    "--source-registry"
-    "${config.home.homeDirectory}/.local/state/vesper/research/unknown-frontier-ai/source-registry.json"
-    "--tor-browser"
-    (lib.getExe torBrowserPackage)
-  ];
 in
 {
   imports = [ inputs.zen-browser.homeModules.beta ];
+
+  xdg.configFile."helium-browser-flags.conf".text = ''
+    # Vesper standalone startpage for startup and every new tab.
+    --homepage=${staticStartpage}
+    --custom-ntp=${staticStartpage}
+  '';
 
   programs.zen-browser = {
     enable = true;
@@ -58,7 +46,7 @@ in
     profiles.default.name = "default";
     profiles.default.isDefault = true;
     policies.Homepage = {
-      URL = "http://127.0.0.1:3210/";
+      URL = staticStartpage;
       Locked = true;
       StartPage = "homepage";
     };
@@ -104,6 +92,28 @@ in
     };
   };
 
+  # Script commands are indexed by Vicinae's root search. They are discovery
+  # entries, not desktop applications, so neither app is installed by default.
+  home.file.".local/share/vicinae/scripts/vesper-store-chatgpt".text = ''
+    # @vicinae.schemaVersion 1
+    # @vicinae.title Get ChatGPT
+    # @vicinae.mode silent
+    # @vicinae.icon ✨
+    # @vicinae.description Recommended app · opens Vesper Store
+    # @vicinae.keywords ["chatgpt", "openai", "ai", "recommended", "store"]
+    # @vicinae.exec ["vesper-store", "--search", "ChatGPT"]
+  '';
+
+  home.file.".local/share/vicinae/scripts/vesper-store-claude".text = ''
+    # @vicinae.schemaVersion 1
+    # @vicinae.title Get Claude
+    # @vicinae.mode silent
+    # @vicinae.icon 🤖
+    # @vicinae.description Recommended app · opens Vesper Store
+    # @vicinae.keywords ["claude", "anthropic", "ai", "recommended", "store"]
+    # @vicinae.exec ["vesper-store", "--search", "Claude Desktop"]
+  '';
+
   programs.vesktop = {
     enable = true;
     vencord.useSystem = true;
@@ -132,9 +142,6 @@ in
     vesperStartpage
     torBrowserStartpage
 
-    inputs.chatgpt-desktop.packages.${pkgs.system}.default
-    inputs.claude-desktop.packages.${pkgs.system}.claude-desktop-with-fhs
-
     sessionDesktop
     telegram-desktop
 
@@ -148,7 +155,7 @@ in
 
     obsidian
     inputs.self.packages.${pkgs.system}.t3code-nightly
-    inputs.self.packages.${pkgs.system}.vesper-store
+    inputs.vesper-store.packages.${pkgs.system}.vesper-store
   ];
 
   # Keep Store-owned binaries and desktop entries visible after a transaction
@@ -157,35 +164,6 @@ in
   home.sessionSearchVariables.XDG_DATA_DIRS = [
     "$HOME/.local/state/vesper/store/profile/share"
   ];
-
-  systemd.user.sockets.vesper-startpage = {
-    Unit = {
-      Description = "Vesper local browser startpage socket";
-      PartOf = [ "graphical-session.target" ];
-    };
-    Socket = {
-      ListenStream = "127.0.0.1:3210";
-      Accept = false;
-      Service = "vesper-startpage.service";
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
-
-  systemd.user.services.vesper-startpage = {
-    Unit = {
-      Description = "Vesper local browser startpage and research surface";
-      PartOf = [ "graphical-session.target" ];
-      After = [ "vesper-startpage.socket" ];
-    };
-    Service = {
-      ExecStart = lib.concatStringsSep " " (
-        [ "${vesperStartpage}/bin/vesper-startpage" ]
-        ++ lib.map lib.escapeShellArg startpageArgs
-      );
-      Restart = "on-failure";
-      RestartSec = 2;
-    };
-  };
 
   xdg.mimeApps = {
     enable = true;
